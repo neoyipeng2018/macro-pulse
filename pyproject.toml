@@ -1,0 +1,50 @@
+[tool.poetry]
+name = "macro-pulse"
+version = "0.1.0"
+description = "Weekly macro narrative extraction for directional trading across FX, commodities, crypto, and indices"
+authors = ["boo"]
+package-mode = false
+
+[tool.poetry.dependencies]
+python = "^3.11"
+anthropic = "^0.42"
+langchain = "^0.3"
+langchain-anthropic = "^0.3"
+langchain-cerebras = "^0.5"
+feedparser = "^6.0"
+httpx = "^0.28"
+fredapi = "^0.5"
+yfinance = "^0.2"
+pandas = "^2.0"
+numpy = "^2.0"
+pydantic = "^2.0"
+pydantic-settings = "^2.0"
+python-dotenv = "^1.0"
+pyyaml = "^6.0"
+streamlit = "^1.40"
+plotly = "^5.0"
+tenacity = "^9.0"
+tqdm = "^4.0"
+
+[tool.poetry.group.dev.dependencies]
+pytest = "^8.0"
+black = "^24.0"
+ruff = "^0.8"
+mypy = "^1.0"
+
+[tool.ruff]
+line-length = 100
+target-version = "py311"
+
+[tool.ruff.lint]
+select = ["E", "F", "I", "W"]
+
+[tool.mypy]
+python_version = "3.11"
+strict = false
+warn_return_any = true
+warn_unused_configs = true
+
+[build-system]
+requires = ["poetry-core"]
+build-backend = "poetry.core.masonry.api"

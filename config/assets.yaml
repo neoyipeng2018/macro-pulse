@@ -1,0 +1,74 @@
+# Asset universe for macro-pulse
+# Tickers per asset class for weekly sentiment tracking and price validation
+
+fx:
+  - ticker: DX-Y.NYB
+    name: US Dollar Index (DXY)
+  - ticker: EURUSD=X
+    name: EUR/USD
+  - ticker: GBPUSD=X
+    name: GBP/USD
+  - ticker: USDJPY=X
+    name: USD/JPY
+  - ticker: AUDUSD=X
+    name: AUD/USD
+  - ticker: USDCAD=X
+    name: USD/CAD
+  - ticker: USDCHF=X
+    name: USD/CHF
+  - ticker: USDCNH=X
+    name: USD/CNH
+
+metals:
+  - ticker: GC=F
+    name: Gold
+  - ticker: SI=F
+    name: Silver
+  - ticker: PL=F
+    name: Platinum
+  - ticker: HG=F
+    name: Copper
+
+energy:
+  - ticker: CL=F
+    name: WTI Crude Oil
+  - ticker: BZ=F
+    name: Brent Crude
+  - ticker: NG=F
+    name: Natural Gas
+
+crypto:
+  - ticker: BTC-USD
+    name: Bitcoin
+  - ticker: ETH-USD
+    name: Ethereum
+  - ticker: SOL-USD
+    name: Solana
+
+indices:
+  - ticker: ^GSPC
+    name: S&P 500
+  - ticker: ^IXIC
+    name: Nasdaq Composite
+  - ticker: ^DJI
+    name: Dow Jones
+  - ticker: ^RUT
+    name: Russell 2000
+  - ticker: ^VIX
+    name: VIX
+  - ticker: ^FTSE
+    name: FTSE 100
+  - ticker: ^N225
+    name: Nikkei 225
+  - ticker: ^HSI
+    name: Hang Seng
+
+bonds:
+  - ticker: ^TNX
+    name: US 10Y Yield
+  - ticker: ^TYX
+    name: US 30Y Yield
+  - ticker: ^FVX
+    name: US 5Y Yield
+  - ticker: TLT
+    name: 20+ Year Treasury ETF
