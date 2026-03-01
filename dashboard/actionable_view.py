@@ -544,12 +544,40 @@ class ScenarioAssetIntel:
     conflict_flag: bool = False
     scenario_count: int = 0
     dominant_scenario: str = ""
+    consensus_view: str = ""
+    consensus_sources: list[str] = field(default_factory=list)
+    edge_type: EdgeType = EdgeType.ALIGNED
+    edge_rationale: str = ""
+    catalyst: str = ""
+    exit_condition: str = ""
 
 
 def build_scenario_intel(report: WeeklyReport) -> list[ScenarioAssetIntel]:
     """Build ScenarioAssetIntel list from report's scenario_views."""
+    # Build ticker → consensus lookup from narratives (highest-confidence per ticker)
+    ticker_consensus: dict[str, dict] = {}
+    for narrative in report.narratives:
+        for asent in narrative.asset_sentiments:
+            existing = ticker_consensus.get(asent.ticker)
+            if existing is None or narrative.confidence > existing["confidence"]:
+                consensus_view = asent.consensus_view or narrative.consensus_view
+                try:
+                    edge_type = EdgeType(asent.edge_type) if asent.edge_type else narrative.edge_type
+                except ValueError:
+                    edge_type = narrative.edge_type
+                ticker_consensus[asent.ticker] = {
+                    "confidence": narrative.confidence,
+                    "consensus_view": consensus_view,
+                    "consensus_sources": narrative.consensus_sources,
+                    "edge_type": edge_type,
+                    "edge_rationale": asent.edge_rationale or narrative.edge_rationale,
+                    "catalyst": getattr(asent, "catalyst", "") or "",
+                    "exit_condition": getattr(asent, "exit_condition", "") or "",
+                }
+
     results: list[ScenarioAssetIntel] = []
     for sv in report.scenario_views:
+        cons = ticker_consensus.get(sv.ticker, {})
         results.append(
             ScenarioAssetIntel(
                 ticker=sv.ticker,
@@ -560,9 +588,78 @@ def build_scenario_intel(report: WeeklyReport) -> list[ScenarioAssetIntel]:
                 conflict_flag=sv.conflict_flag,
                 scenario_count=sv.scenario_count,
                 dominant_scenario=sv.dominant_scenario,
+                consensus_view=cons.get("consensus_view", ""),
+                consensus_sources=cons.get("consensus_sources", []),
+                edge_type=cons.get("edge_type", EdgeType.ALIGNED),
+                edge_rationale=cons.get("edge_rationale", ""),
+                catalyst=cons.get("catalyst", ""),
+                exit_condition=cons.get("exit_condition", ""),
             )
         )
     return results
+
+
+def _scenario_consensus_html(intel: ScenarioAssetIntel) -> str:
+    """Build the consensus vs. edge section for a scenario card."""
+    if not intel.consensus_view:
+        return ""
+
+    edge_label = EDGE_LABELS.get(intel.edge_type, "ALIGNED")
+    edge_css_class = f"edge-{intel.edge_type.value}"
+
+    citation_chips = ""
+    for src in intel.consensus_sources:
+        citation_chips += f'<span class="citation-chip">{src}</span> '
+
+    html = (
+        f'<div class="consensus-edge-block">'
+        f'<div class="edge-header">'
+        f'<span class="edge-badge {edge_css_class}">{edge_label}</span>'
+        f'<span class="edge-label">vs consensus</span>'
+        f'</div>'
+        f'<div class="consensus-row">'
+        f'<span class="consensus-label">CONSENSUS:</span>'
+        f'<span class="consensus-text">{intel.consensus_view}</span>'
+        f'</div>'
+    )
+
+    if citation_chips:
+        html += f'<div class="consensus-citations">{citation_chips}</div>'
+
+    if intel.edge_rationale:
+        html += (
+            f'<div class="consensus-row">'
+            f'<span class="edge-diff-label">OUR EDGE:</span>'
+            f'<span class="edge-diff-text">{intel.edge_rationale}</span>'
+            f'</div>'
+        )
+
+    html += '</div>'
+    return html
+
+
+def _scenario_catalyst_exit_html(intel: ScenarioAssetIntel) -> str:
+    """Build the catalyst + exit condition section for a scenario card."""
+    if not intel.catalyst and not intel.exit_condition:
+        return ""
+
+    rows = ""
+    if intel.catalyst:
+        rows += (
+            f'<div class="catalyst-row">'
+            f'<span class="catalyst-label">CATALYST:</span>'
+            f'<span class="catalyst-text">{intel.catalyst}</span>'
+            f'</div>'
+        )
+    if intel.exit_condition:
+        rows += (
+            f'<div class="catalyst-row">'
+            f'<span class="exit-label">EXIT WHEN:</span>'
+            f'<span class="exit-text">{intel.exit_condition}</span>'
+            f'</div>'
+        )
+
+    return f'<div class="catalyst-exit-block">{rows}</div>'
 
 
 def _render_scenario_card(
@@ -620,6 +717,10 @@ def _render_scenario_card(
             f"</div>"
         )
 
+    # Consensus & catalyst sections
+    consensus_html = _scenario_consensus_html(intel)
+    catalyst_exit_html = _scenario_catalyst_exit_html(intel)
+
     # Technicals section
     technicals_html = ""
     if tech_snapshot:
@@ -638,6 +739,10 @@ def _render_scenario_card(
         f"</div>"
         # Scenario sub-blocks
         f"{scenario_blocks}"
+        # Consensus vs. edge
+        f"{consensus_html}"
+        # Catalyst & exit condition
+        f"{catalyst_exit_html}"
         # Technicals
         f"{technicals_html}"
         f"</div>"
