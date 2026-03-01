@@ -40,7 +40,7 @@ subreddits:
   - bonds
 
 economic_calendar:
-  lookforward_days: 14
+  lookforward_days: 21
   impact_filter:
     - high
     - medium

@@ -53,20 +53,19 @@ def test_twitter_placeholder_returns_empty():
 
 
 def test_economic_calendar_event_to_signal():
-    """_event_to_signal() produces correct format from a Finnhub event."""
+    """_event_to_signal() produces correct format from a calendar event."""
+    from datetime import datetime
     collector = EconomicCalendarCollector()
     event = {
-        "country": "US",
-        "date": "2026-03-18",
-        "time": "14:00:00",
-        "event": "FOMC Rate Decision",
-        "impact": "high",
-        "estimate": 4.5,
-        "prev": 4.75,
-        "actual": None,
-        "unit": "%",
+        "country": "USD",
+        "date": "2026-03-18T14:00:00-05:00",
+        "title": "FOMC Rate Decision",
+        "impact": "High",
+        "forecast": "4.5%",
+        "previous": "4.75%",
     }
-    signal = collector._event_to_signal(event)
+    # Set now to before the event so it isn't filtered as past
+    signal = collector._event_to_signal(event, now=datetime(2026, 3, 1))
     assert signal is not None
     assert signal.title.startswith("[UPCOMING]")
     assert signal.metadata["is_forward_looking"] is True
@@ -80,10 +79,10 @@ def test_economic_calendar_filters_low_impact():
     """Low-impact events should be filtered out."""
     collector = EconomicCalendarCollector()
     event = {
-        "country": "US",
-        "date": "2026-03-18",
-        "event": "Some Minor Report",
-        "impact": "low",
+        "country": "USD",
+        "date": "2026-03-18T10:00:00-05:00",
+        "title": "Some Minor Report",
+        "impact": "Low",
     }
     signal = collector._event_to_signal(event)
     assert signal is None
