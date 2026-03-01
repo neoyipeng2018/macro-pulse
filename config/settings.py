@@ -28,6 +28,7 @@ class Settings(BaseSettings):
     reddit_client_id: str = ""
     reddit_client_secret: str = ""
     twitter_bearer_token: str = ""
+    finnhub_api_key: str = ""
 
     # App config
     max_narratives: int = 30

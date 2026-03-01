@@ -37,7 +37,10 @@ Rules:
 - Assess trend: intensifying, stable, or fading
 - Provide a confidence score (0-1) based on signal corroboration and strength
 - Only include assets where this narrative has a MEANINGFUL directional implication
-- Be specific about causation: WHY does this narrative move this asset in this direction?""",
+- Be specific about causation: WHY does this narrative move this asset in this direction?
+- Signals with [UPCOMING] prefix are FORWARD-LOOKING scheduled events (FOMC, NFP, CPI, etc.), not past data.
+  Treat them as catalysts: consider consensus vs previous readings, pre-event positioning risk,
+  and binary event risk. These events often dominate the 1-week directional outlook.""",
         ),
         (
             "human",
@@ -132,6 +135,7 @@ Write a concise executive summary (3-5 sentences) covering:
 2. The highest-conviction directional trades
 3. Key risks to the base case
 4. What to watch next week
+5. Key upcoming events that could change the outlook (FOMC, NFP, CPI, etc.)
 
 Return ONLY the summary text, no JSON.""",
         ),

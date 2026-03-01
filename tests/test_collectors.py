@@ -9,6 +9,7 @@ from collectors.cot_reports import COTCollector
 from collectors.fear_greed import FearGreedCollector
 from collectors.market_data import MarketDataCollector
 from collectors.twitter import TwitterCollector
+from collectors.economic_calendar import EconomicCalendarCollector
 
 
 def test_all_collectors_inherit_base():
@@ -22,6 +23,7 @@ def test_all_collectors_inherit_base():
         FearGreedCollector,
         MarketDataCollector,
         TwitterCollector,
+        EconomicCalendarCollector,
     ]
     for cls in collectors:
         assert issubclass(cls, BaseCollector), f"{cls.__name__} must inherit BaseCollector"
@@ -48,3 +50,51 @@ def test_twitter_placeholder_returns_empty():
     collector = TwitterCollector()
     signals = collector.collect()
     assert signals == []
+
+
+def test_economic_calendar_event_to_signal():
+    """_event_to_signal() produces correct format from a Finnhub event."""
+    collector = EconomicCalendarCollector()
+    event = {
+        "country": "US",
+        "date": "2026-03-18",
+        "time": "14:00:00",
+        "event": "FOMC Rate Decision",
+        "impact": "high",
+        "estimate": 4.5,
+        "prev": 4.75,
+        "actual": None,
+        "unit": "%",
+    }
+    signal = collector._event_to_signal(event)
+    assert signal is not None
+    assert signal.title.startswith("[UPCOMING]")
+    assert signal.metadata["is_forward_looking"] is True
+    assert signal.metadata["event_name"] == "FOMC Rate Decision"
+    assert signal.metadata["country"] == "US"
+    assert signal.metadata["impact"] == "high"
+    assert signal.source.value == "economic_data"
+
+
+def test_economic_calendar_filters_low_impact():
+    """Low-impact events should be filtered out."""
+    collector = EconomicCalendarCollector()
+    event = {
+        "country": "US",
+        "date": "2026-03-18",
+        "event": "Some Minor Report",
+        "impact": "low",
+    }
+    signal = collector._event_to_signal(event)
+    assert signal is None
+
+
+def test_economic_calendar_fomc_fallback():
+    """Hardcoded fallback returns FOMC dates when no API key is set."""
+    collector = EconomicCalendarCollector()
+    signals = collector._collect_fomc_fallback()
+    for s in signals:
+        assert s.title.startswith("[UPCOMING] FOMC")
+        assert s.metadata["is_forward_looking"] is True
+        assert s.metadata["event_name"] == "FOMC Rate Decision"
+        assert s.metadata["impact"] == "high"

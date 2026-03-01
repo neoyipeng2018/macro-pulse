@@ -39,6 +39,20 @@ subreddits:
   - commodities
   - bonds
 
+economic_calendar:
+  lookforward_days: 14
+  impact_filter:
+    - high
+    - medium
+  countries:
+    - US
+    - EU
+    - GB
+    - JP
+    - CN
+    - AU
+    - CA
+
 fred_series:
   # Weekly/monthly macro indicators
   - id: DFF
