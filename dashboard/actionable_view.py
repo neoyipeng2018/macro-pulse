@@ -11,6 +11,7 @@ from models.schemas import (
     AssetClass,
     Narrative,
     SentimentDirection,
+    SignalSource,
     WeeklyAssetScore,
     WeeklyReport,
 )
@@ -24,6 +25,16 @@ ASSET_LABELS = {
     AssetClass.BONDS: "Bonds",
 }
 
+SOURCE_LABELS = {
+    SignalSource.NEWS: "News",
+    SignalSource.MARKET_DATA: "Market Data",
+    SignalSource.SOCIAL: "Social",
+    SignalSource.CENTRAL_BANK: "Central Bank",
+    SignalSource.ECONOMIC_DATA: "Econ Data",
+    SignalSource.COT: "COT",
+    SignalSource.FEAR_GREED: "Fear/Greed",
+}
+
 
 @dataclass
 class NarrativeContext:
@@ -34,6 +45,7 @@ class NarrativeContext:
     horizon: str
     trend: str
     rationale: str
+    signal_sources: list[str] = field(default_factory=list)
 
 
 @dataclass
@@ -50,6 +62,7 @@ class AssetIntel:
     trend: str  # majority vote across narratives
     primary_rationale: str  # from highest-confidence matching narrative
     source_narrative: str  # title of that narrative
+    signal_sources: list[str] = field(default_factory=list)  # e.g. ["News", "Central Bank"]
     extra_narratives: list[NarrativeContext] = field(default_factory=list)
 
 
@@ -81,9 +94,21 @@ def build_asset_intel(report: WeeklyReport) -> list[AssetIntel]:
             trend_counts = Counter(n.trend for n, _ in entries)
             trend = trend_counts.most_common(1)[0][0]
 
+            # Collect unique signal sources across all narratives for this asset
+            all_sources: set[str] = set()
+            for narr, _ in entries:
+                for sig in narr.signals:
+                    label = SOURCE_LABELS.get(sig.source, sig.source.value)
+                    all_sources.add(label)
+            signal_sources = sorted(all_sources)
+
             # Build extra narratives (skip the primary)
             extra = []
             for narr, asent in entries[1:]:
+                narr_sources = sorted({
+                    SOURCE_LABELS.get(s.source, s.source.value)
+                    for s in narr.signals
+                })
                 extra.append(
                     NarrativeContext(
                         narrative_title=narr.title,
@@ -91,6 +116,7 @@ def build_asset_intel(report: WeeklyReport) -> list[AssetIntel]:
                         horizon=narr.horizon,
                         trend=narr.trend,
                         rationale=asent.rationale or narr.summary,
+                        signal_sources=narr_sources,
                     )
                 )
         else:
@@ -98,6 +124,7 @@ def build_asset_intel(report: WeeklyReport) -> list[AssetIntel]:
             trend = "stable"
             primary_rationale = ""
             source_narrative = score.top_narrative
+            signal_sources = []
             extra = []
 
         results.append(
@@ -112,6 +139,7 @@ def build_asset_intel(report: WeeklyReport) -> list[AssetIntel]:
                 trend=trend,
                 primary_rationale=primary_rationale,
                 source_narrative=source_narrative,
+                signal_sources=signal_sources,
                 extra_narratives=extra,
             )
         )
@@ -162,6 +190,9 @@ def _extra_narratives_html(extra: list[NarrativeContext]) -> str:
     items = ""
     for ctx in extra:
         trend_cls = f"trend-{ctx.trend}"
+        ctx_chips = "".join(
+            f'<span class="source-chip">{src}</span>' for src in ctx.signal_sources
+        )
         items += (
             f'<div style="margin-bottom:8px;">'
             f'<span style="color:#e0e4ec;font-size:0.8rem;font-weight:600;">'
@@ -169,7 +200,8 @@ def _extra_narratives_html(extra: list[NarrativeContext]) -> str:
             f'<span class="horizon-chip">{ctx.horizon}</span> '
             f'<span class="trend-chip {trend_cls}">{ctx.trend}</span> '
             f'<span style="color:#4a5568;font-size:0.65rem;">'
-            f"conf {ctx.confidence:.0%}</span>"
+            f"conf {ctx.confidence:.0%}</span> "
+            f"{ctx_chips}"
             f'<div class="rationale-text">{ctx.rationale}</div>'
             f"</div>"
         )
@@ -193,6 +225,10 @@ def _render_asset_card(intel: AssetIntel) -> None:
     if intel.extra_narratives:
         extra_html = _extra_narratives_html(intel.extra_narratives)
 
+    source_chips = "".join(
+        f'<span class="source-chip">{src}</span>' for src in intel.signal_sources
+    )
+
     card_html = (
         f'<div class="asset-card asset-card-{dir_val}">'
         # Header row
@@ -207,9 +243,10 @@ def _render_asset_card(intel: AssetIntel) -> None:
         f"</div>"
         # Rationale
         f'<div class="rationale-text">{intel.primary_rationale}</div>'
-        # Source
+        # Source + source chips
         f'<div class="source-narrative">via {intel.source_narrative}'
         f" · {intel.narrative_count} narrative{'s' if intel.narrative_count != 1 else ''}"
+        f" · {source_chips}"
         f"</div>"
         # Extra narratives (inline HTML details/summary)
         f"{extra_html}"

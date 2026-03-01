@@ -111,6 +111,7 @@ div[data-testid="stVerticalBlock"] > div { gap: 0.4rem; }
     background: rgba(0, 212, 170, 0.1);
     color: #00d4aa;
     border: 1px solid rgba(0, 212, 170, 0.2);
+    margin-left: 3px;
 }
 
 /* === PULSE DOT === */
