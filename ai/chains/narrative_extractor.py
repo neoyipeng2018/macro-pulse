@@ -8,7 +8,7 @@ from datetime import datetime
 from langchain_core.language_models import BaseChatModel
 
 from ai.prompts.templates import NARRATIVE_EXTRACTION_PROMPT
-from models.schemas import AssetClass, AssetSentiment, Narrative, SentimentDirection, Signal
+from models.schemas import AssetClass, AssetSentiment, EdgeType, Narrative, SentimentDirection, Signal
 
 logger = logging.getLogger(__name__)
 
@@ -18,13 +18,15 @@ def extract_narratives(signals: list[Signal], llm: BaseChatModel) -> list[Narrat
     if not signals:
         return []
 
-    # Format signals for the prompt
+    # Format signals for the prompt, including timestamps for temporal context
     signal_text = "\n\n".join(
-        f"[{s.id}] ({s.source.value}) {s.title}\n{s.content[:400]}" for s in signals
+        f"[{s.id}] ({s.source.value}, {s.timestamp.strftime('%Y-%m-%d')}) {s.title}\n{s.content[:400]}"
+        for s in signals
     )
 
+    run_date = datetime.utcnow().strftime("%Y-%m-%d")
     chain = NARRATIVE_EXTRACTION_PROMPT | llm
-    response = chain.invoke({"signals": signal_text})
+    response = chain.invoke({"signals": signal_text, "run_date": run_date})
 
     # Build a lookup for signals by ID
     signal_map = {s.id: s for s in signals}
@@ -77,6 +79,12 @@ def extract_narratives(signals: list[Signal], llm: BaseChatModel) -> list[Narrat
                 except ValueError:
                     continue
 
+            # Parse edge type
+            try:
+                edge_type = EdgeType(item.get("edge_type", "aligned"))
+            except ValueError:
+                edge_type = EdgeType.ALIGNED
+
             narrative = Narrative(
                 id=uuid.uuid4().hex[:12],
                 title=item["title"],
@@ -87,6 +95,10 @@ def extract_narratives(signals: list[Signal], llm: BaseChatModel) -> list[Narrat
                 horizon=item.get("horizon", "1-4 weeks"),
                 confidence=float(item.get("confidence", 0.5)),
                 trend=item.get("trend", "stable"),
+                consensus_view=str(item.get("consensus_view", "")),
+                consensus_sources=list(item.get("consensus_sources", [])),
+                edge_type=edge_type,
+                edge_rationale=str(item.get("edge_rationale", "")),
                 first_seen=datetime.utcnow(),
                 last_updated=datetime.utcnow(),
             )

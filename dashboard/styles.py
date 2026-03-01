@@ -379,6 +379,108 @@ details[data-testid="stExpander"] {
 .call-section-bearish { color: #FF1744; border-bottom: 1px solid rgba(255, 23, 68, 0.2); }
 .call-section-neutral { color: #FFEA00; border-bottom: 1px solid rgba(255, 234, 0, 0.2); }
 
+/* === CONSENSUS vs. EDGE BLOCK === */
+.consensus-edge-block {
+    background: rgba(13, 17, 23, 0.6);
+    border: 1px solid #1a2332;
+    border-radius: 4px;
+    padding: 10px 14px;
+    margin-top: 8px;
+    margin-bottom: 4px;
+}
+.edge-header {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    margin-bottom: 6px;
+}
+.edge-badge {
+    display: inline-block;
+    padding: 2px 8px;
+    border-radius: 3px;
+    font-size: 0.6rem;
+    font-weight: 700;
+    letter-spacing: 0.08em;
+    text-transform: uppercase;
+}
+.edge-contrarian {
+    background: rgba(255, 145, 0, 0.2);
+    color: #FF9100;
+    border: 1px solid rgba(255, 145, 0, 0.35);
+}
+.edge-more_aggressive {
+    background: rgba(0, 230, 118, 0.2);
+    color: #00E676;
+    border: 1px solid rgba(0, 230, 118, 0.35);
+}
+.edge-more_passive {
+    background: rgba(255, 234, 0, 0.2);
+    color: #FFEA00;
+    border: 1px solid rgba(255, 234, 0, 0.35);
+}
+.edge-aligned {
+    background: rgba(74, 85, 104, 0.3);
+    color: #8892a4;
+    border: 1px solid rgba(74, 85, 104, 0.4);
+}
+.edge-label {
+    font-size: 0.6rem;
+    color: #4a5568;
+    letter-spacing: 0.05em;
+    text-transform: uppercase;
+}
+.consensus-row {
+    display: flex;
+    gap: 8px;
+    margin-bottom: 4px;
+    align-items: baseline;
+}
+.consensus-label {
+    font-size: 0.6rem;
+    font-weight: 700;
+    color: #4a5568;
+    letter-spacing: 0.08em;
+    text-transform: uppercase;
+    white-space: nowrap;
+    min-width: 80px;
+}
+.consensus-text {
+    font-size: 0.72rem;
+    color: #8892a4;
+    line-height: 1.5;
+}
+.consensus-citations {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 4px;
+    margin: 4px 0 6px 0;
+}
+.citation-chip {
+    display: inline-block;
+    padding: 1px 6px;
+    border-radius: 3px;
+    font-size: 0.55rem;
+    font-weight: 600;
+    letter-spacing: 0.04em;
+    background: rgba(138, 180, 248, 0.08);
+    color: #8ab4f8;
+    border: 1px solid rgba(138, 180, 248, 0.2);
+}
+.edge-diff-label {
+    font-size: 0.6rem;
+    font-weight: 700;
+    color: #FF9100;
+    letter-spacing: 0.08em;
+    text-transform: uppercase;
+    white-space: nowrap;
+    min-width: 80px;
+}
+.edge-diff-text {
+    font-size: 0.72rem;
+    color: #c5c8d4;
+    line-height: 1.5;
+}
+
 /* === INLINE DETAILS/SUMMARY (extra narratives) === */
 .extra-narratives {
     margin-top: 8px;

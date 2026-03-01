@@ -9,6 +9,7 @@ import streamlit as st
 
 from models.schemas import (
     AssetClass,
+    EdgeType,
     Narrative,
     SentimentDirection,
     SignalSource,
@@ -36,6 +37,14 @@ SOURCE_LABELS = {
 }
 
 
+EDGE_LABELS = {
+    EdgeType.CONTRARIAN: "CONTRARIAN",
+    EdgeType.MORE_AGGRESSIVE: "MORE AGGRESSIVE",
+    EdgeType.MORE_PASSIVE: "MORE PASSIVE",
+    EdgeType.ALIGNED: "ALIGNED",
+}
+
+
 @dataclass
 class NarrativeContext:
     """A single narrative's contribution to an asset's view."""
@@ -46,6 +55,10 @@ class NarrativeContext:
     trend: str
     rationale: str
     signal_sources: list[str] = field(default_factory=list)
+    consensus_view: str = ""
+    edge_type: EdgeType = EdgeType.ALIGNED
+    edge_rationale: str = ""
+    consensus_sources: list[str] = field(default_factory=list)
 
 
 @dataclass
@@ -64,6 +77,11 @@ class AssetIntel:
     source_narrative: str  # title of that narrative
     signal_sources: list[str] = field(default_factory=list)  # e.g. ["News", "Central Bank"]
     extra_narratives: list[NarrativeContext] = field(default_factory=list)
+    # Consensus vs. edge from primary narrative
+    consensus_view: str = ""
+    consensus_sources: list[str] = field(default_factory=list)
+    edge_type: EdgeType = EdgeType.ALIGNED
+    edge_rationale: str = ""
 
 
 def build_asset_intel(report: WeeklyReport) -> list[AssetIntel]:
@@ -102,6 +120,12 @@ def build_asset_intel(report: WeeklyReport) -> list[AssetIntel]:
                     all_sources.add(label)
             signal_sources = sorted(all_sources)
 
+            # Consensus & edge from primary narrative
+            consensus_view = primary_narr.consensus_view
+            consensus_sources = primary_narr.consensus_sources
+            edge_type = primary_narr.edge_type
+            edge_rationale = primary_narr.edge_rationale
+
             # Build extra narratives (skip the primary)
             extra = []
             for narr, asent in entries[1:]:
@@ -117,6 +141,10 @@ def build_asset_intel(report: WeeklyReport) -> list[AssetIntel]:
                         trend=narr.trend,
                         rationale=asent.rationale or narr.summary,
                         signal_sources=narr_sources,
+                        consensus_view=narr.consensus_view,
+                        edge_type=narr.edge_type,
+                        edge_rationale=narr.edge_rationale,
+                        consensus_sources=narr.consensus_sources,
                     )
                 )
         else:
@@ -126,6 +154,10 @@ def build_asset_intel(report: WeeklyReport) -> list[AssetIntel]:
             source_narrative = score.top_narrative
             signal_sources = []
             extra = []
+            consensus_view = ""
+            consensus_sources = []
+            edge_type = EdgeType.ALIGNED
+            edge_rationale = ""
 
         results.append(
             AssetIntel(
@@ -141,6 +173,10 @@ def build_asset_intel(report: WeeklyReport) -> list[AssetIntel]:
                 source_narrative=source_narrative,
                 signal_sources=signal_sources,
                 extra_narratives=extra,
+                consensus_view=consensus_view,
+                consensus_sources=consensus_sources,
+                edge_type=edge_type,
+                edge_rationale=edge_rationale,
             )
         )
 
@@ -213,6 +249,52 @@ def _extra_narratives_html(extra: list[NarrativeContext]) -> str:
     )
 
 
+def _consensus_edge_html(intel: AssetIntel) -> str:
+    """Build the consensus vs. edge section for an asset card."""
+    if not intel.consensus_view:
+        return ""
+
+    edge_label = EDGE_LABELS.get(intel.edge_type, "ALIGNED")
+    edge_css_class = f"edge-{intel.edge_type.value}"
+
+    # Consensus sources as citation chips
+    citation_chips = ""
+    for src in intel.consensus_sources:
+        citation_chips += f'<span class="citation-chip">{src}</span> '
+
+    edge_section = (
+        f'<div class="consensus-edge-block">'
+        # Edge badge
+        f'<div class="edge-header">'
+        f'<span class="edge-badge {edge_css_class}">{edge_label}</span>'
+        f'<span class="edge-label">vs consensus</span>'
+        f'</div>'
+        # Consensus view
+        f'<div class="consensus-row">'
+        f'<span class="consensus-label">CONSENSUS:</span>'
+        f'<span class="consensus-text">{intel.consensus_view}</span>'
+        f'</div>'
+    )
+
+    # Citations
+    if citation_chips:
+        edge_section += (
+            f'<div class="consensus-citations">{citation_chips}</div>'
+        )
+
+    # Edge rationale (our differentiated view)
+    if intel.edge_rationale:
+        edge_section += (
+            f'<div class="consensus-row">'
+            f'<span class="edge-diff-label">OUR EDGE:</span>'
+            f'<span class="edge-diff-text">{intel.edge_rationale}</span>'
+            f'</div>'
+        )
+
+    edge_section += '</div>'
+    return edge_section
+
+
 def _render_asset_card(intel: AssetIntel) -> None:
     """Render a single asset intel card."""
     dir_val = intel.direction.value
@@ -229,6 +311,8 @@ def _render_asset_card(intel: AssetIntel) -> None:
         f'<span class="source-chip">{src}</span>' for src in intel.signal_sources
     )
 
+    consensus_html = _consensus_edge_html(intel)
+
     card_html = (
         f'<div class="asset-card asset-card-{dir_val}">'
         # Header row
@@ -243,6 +327,8 @@ def _render_asset_card(intel: AssetIntel) -> None:
         f"</div>"
         # Rationale
         f'<div class="rationale-text">{intel.primary_rationale}</div>'
+        # Consensus vs. edge
+        f"{consensus_html}"
         # Source + source chips
         f'<div class="source-narrative">via {intel.source_narrative}'
         f" · {intel.narrative_count} narrative{'s' if intel.narrative_count != 1 else ''}"

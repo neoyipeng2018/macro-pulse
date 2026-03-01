@@ -9,6 +9,7 @@ from models.schemas import (
     AssetClass,
     AssetSentiment,
     EconomicRegime,
+    EdgeType,
     Narrative,
     PriceValidation,
     SentimentDirection,
@@ -54,6 +55,10 @@ def init_db() -> None:
             horizon TEXT NOT NULL DEFAULT '1-4 weeks',
             confidence REAL NOT NULL DEFAULT 0.5,
             trend TEXT NOT NULL DEFAULT 'stable',
+            consensus_view TEXT NOT NULL DEFAULT '',
+            consensus_sources TEXT NOT NULL DEFAULT '[]',
+            edge_type TEXT NOT NULL DEFAULT 'aligned',
+            edge_rationale TEXT NOT NULL DEFAULT '',
             first_seen TEXT NOT NULL,
             last_updated TEXT NOT NULL,
             FOREIGN KEY (report_id) REFERENCES weekly_reports(id)
@@ -104,6 +109,15 @@ def init_db() -> None:
         );
     """
     )
+    # Migrate: add consensus columns if missing (existing databases)
+    try:
+        conn.execute("SELECT consensus_view FROM narratives LIMIT 1")
+    except sqlite3.OperationalError:
+        conn.execute("ALTER TABLE narratives ADD COLUMN consensus_view TEXT NOT NULL DEFAULT ''")
+        conn.execute("ALTER TABLE narratives ADD COLUMN consensus_sources TEXT NOT NULL DEFAULT '[]'")
+        conn.execute("ALTER TABLE narratives ADD COLUMN edge_type TEXT NOT NULL DEFAULT 'aligned'")
+        conn.execute("ALTER TABLE narratives ADD COLUMN edge_rationale TEXT NOT NULL DEFAULT ''")
+
     conn.commit()
     conn.close()
 
@@ -133,8 +147,9 @@ def save_report(report: WeeklyReport) -> None:
         conn.execute(
             """INSERT OR REPLACE INTO narratives
             (id, report_id, title, summary, asset_sentiments, affected_asset_classes,
-             horizon, confidence, trend, first_seen, last_updated)
-            VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)""",
+             horizon, confidence, trend, consensus_view, consensus_sources,
+             edge_type, edge_rationale, first_seen, last_updated)
+            VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)""",
             (
                 narrative.id,
                 report.id,
@@ -145,6 +160,10 @@ def save_report(report: WeeklyReport) -> None:
                 narrative.horizon,
                 narrative.confidence,
                 narrative.trend,
+                narrative.consensus_view,
+                json.dumps(narrative.consensus_sources),
+                narrative.edge_type.value,
+                narrative.edge_rationale,
                 narrative.first_seen.isoformat(),
                 narrative.last_updated.isoformat(),
             ),
@@ -287,6 +306,17 @@ def _load_report_from_row(conn: sqlite3.Connection, row: sqlite3.Row) -> WeeklyR
                 except (ValueError, KeyError):
                     continue
 
+        # Parse edge type safely (handle old data without these columns)
+        try:
+            edge_type = EdgeType(nr["edge_type"]) if nr["edge_type"] else EdgeType.ALIGNED
+        except (ValueError, IndexError, KeyError):
+            edge_type = EdgeType.ALIGNED
+
+        try:
+            consensus_sources = json.loads(nr["consensus_sources"]) if nr["consensus_sources"] else []
+        except (json.JSONDecodeError, IndexError, KeyError):
+            consensus_sources = []
+
         narratives.append(
             Narrative(
                 id=nr["id"],
@@ -300,6 +330,10 @@ def _load_report_from_row(conn: sqlite3.Connection, row: sqlite3.Row) -> WeeklyR
                 horizon=nr["horizon"],
                 confidence=nr["confidence"],
                 trend=nr["trend"],
+                consensus_view=nr["consensus_view"] if "consensus_view" in nr.keys() else "",
+                consensus_sources=consensus_sources,
+                edge_type=edge_type,
+                edge_rationale=nr["edge_rationale"] if "edge_rationale" in nr.keys() else "",
                 first_seen=datetime.fromisoformat(nr["first_seen"]),
                 last_updated=datetime.fromisoformat(nr["last_updated"]),
             )

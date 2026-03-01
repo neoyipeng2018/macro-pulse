@@ -63,6 +63,14 @@ class AssetSentiment(BaseModel):
     rationale: str = ""       # why this direction
 
 
+class EdgeType(str, Enum):
+    """How our signal differs from market consensus."""
+    CONTRARIAN = "contrarian"          # opposite direction to consensus
+    MORE_AGGRESSIVE = "more_aggressive"  # same direction but stronger conviction
+    MORE_PASSIVE = "more_passive"        # same direction but weaker conviction
+    ALIGNED = "aligned"                  # in line with consensus (no edge)
+
+
 class Narrative(BaseModel):
     """A macro narrative extracted from signals, with per-asset directional sentiment."""
 
@@ -75,6 +83,11 @@ class Narrative(BaseModel):
     horizon: str = "1-4 weeks"   # expected timeframe for thesis to play out
     confidence: float = 0.5      # 0-1, overall narrative confidence
     trend: str = "stable"        # intensifying, stable, fading
+    # Consensus vs. edge analysis
+    consensus_view: str = ""     # what the market/analysts consensus thinks
+    consensus_sources: list[str] = Field(default_factory=list)  # citations for verification
+    edge_type: EdgeType = EdgeType.ALIGNED  # how our signal differs from consensus
+    edge_rationale: str = ""     # why we think consensus is wrong or incomplete
     first_seen: datetime = Field(default_factory=datetime.utcnow)
     last_updated: datetime = Field(default_factory=datetime.utcnow)
 

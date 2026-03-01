@@ -40,11 +40,34 @@ Rules:
 - Be specific about causation: WHY does this narrative move this asset in this direction?
 - Signals with [UPCOMING] prefix are FORWARD-LOOKING scheduled events (FOMC, NFP, CPI, etc.), not past data.
   Treat them as catalysts: consider consensus vs previous readings, pre-event positioning risk,
-  and binary event risk. These events often dominate the 1-week directional outlook.""",
+  and binary event risk. These events often dominate the 1-week directional outlook.
+- TEMPORAL GROUNDING: Today's date is {run_date}. Each signal includes its date.
+  Only reference data points, readings, and events that are within the signal set provided.
+  Do NOT add historical context, dates, or data points from your training data that are
+  not in the signals. If a signal doesn't specify a date for a data point, do not invent one.
+
+CRITICAL — CONSENSUS vs. EDGE ANALYSIS:
+To make money in markets, we must be DIFFERENT from consensus. For EACH narrative you must:
+1. Identify what the MARKET CONSENSUS currently believes about this theme. What are sell-side
+   analysts, financial media, and futures pricing telling us? What is already "priced in"?
+2. Cite verifiable sources for the consensus view (e.g. "CME FedWatch shows 85% probability
+   of June cut", "Bloomberg consensus expects NFP +180k", "Goldman/JPM calling for $2800 gold",
+   "options market pricing 2% move around CPI"). Use specific, checkable references.
+3. Explain HOW our signal-derived view DIFFERS from consensus:
+   - "contrarian": our signals point in the OPPOSITE direction to consensus
+   - "more_aggressive": same direction as consensus but our signals suggest a BIGGER move
+   - "more_passive": same direction as consensus but our signals suggest LESS conviction
+   - "aligned": our view matches consensus (lowest alpha potential — flag this honestly)
+4. Explain WHY our signals see something consensus is missing or underweighting.
+
+The edge analysis is what separates actionable intelligence from noise. Be honest — if our
+signals agree with consensus, say so. The value is in identifying WHERE we diverge.""",
         ),
         (
             "human",
-            """Analyze these signals and extract macro narratives with per-asset directional sentiment:
+            """Today's date: {run_date}
+
+Analyze these signals and extract macro narratives with per-asset directional sentiment:
 
 {signals}
 
@@ -57,6 +80,10 @@ Return your analysis as a JSON array:
         {{"ticker": "DXY", "asset_class": "fx", "direction": "bearish", "conviction": 0.7, "rationale": "Dovish Fed expectations weigh on USD"}},
         {{"ticker": "S&P 500", "asset_class": "indices", "direction": "bearish", "conviction": 0.5, "rationale": "Risk-off sentiment from trade war escalation"}}
     ],
+    "consensus_view": "What the market/analyst consensus currently believes about this theme. Be specific — cite pricing, positioning, or prevailing sell-side view.",
+    "consensus_sources": ["CME FedWatch pricing", "Bloomberg survey median", "CFTC positioning data from signals"],
+    "edge_type": "contrarian|more_aggressive|more_passive|aligned",
+    "edge_rationale": "Why our signal-derived view differs from consensus. What are our signals seeing that the market is missing or underweighting?",
     "affected_asset_classes": ["fx", "metals", "indices"],
     "horizon": "1-2 weeks",
     "trend": "intensifying|stable|fading",

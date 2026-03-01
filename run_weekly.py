@@ -73,6 +73,24 @@ def run_pipeline(collect_only: bool = False, sources: list[str] | None = None):
         logger.warning("No signals collected. Exiting.")
         return
 
+    # Step 1b: Filter stale signals
+    run_date = datetime.utcnow()
+    max_age_days = 10  # signals older than this are dropped
+    cutoff = run_date - timedelta(days=max_age_days)
+    before = len(signals)
+    signals = [
+        s for s in signals
+        if s.timestamp >= cutoff
+        or s.metadata.get("is_forward_looking")
+    ]
+    dropped = before - len(signals)
+    if dropped:
+        logger.info(
+            "Relevance filter: dropped %d signals older than %d days",
+            dropped, max_age_days,
+        )
+    logger.info("Signals after relevance filter: %d", len(signals))
+
     # Save raw signals
     raw_dir = Path("data/raw")
     raw_dir.mkdir(parents=True, exist_ok=True)
