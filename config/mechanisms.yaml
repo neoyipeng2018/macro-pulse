@@ -1310,6 +1310,222 @@ mechanisms:
       - Market recovers within days (buy-the-dip mentality)
       - Enforcement targets narrow scope, not systemic
 
+  - id: btc_halving_supply_shock
+    name: Bitcoin Halving Supply Shock
+    category: crypto
+    description: >
+      Every ~4 years, Bitcoin block rewards are cut 50%, reducing new BTC
+      issuance and doubling the stock-to-flow ratio overnight. Each of the
+      four halvings (2012, 2016, 2020, 2024) preceded a major bull run within
+      6-18 months. PlanB's Stock-to-Flow model (2019) formalized this;
+      Fantazzini & Kolodin (2020) provide econometric testing. The mechanism
+      is endogenous supply: halving → miner revenue halved → reduced sell
+      pressure → supply deficit against steady/growing demand → price
+      appreciation. Entirely distinct from the liquidity proxy — this is an
+      endogenous supply mechanism, not an exogenous liquidity one.
+    trigger_sources:
+      - market_data
+      - news
+      - social
+      - google_trends
+    trigger_keywords:
+      - halving
+      - halvening
+      - block reward
+      - stock to flow
+      - S2F
+      - miner reward
+      - BTC issuance
+      - supply shock
+      - miner revenue
+      - hash rate
+      - miner capitulation
+    chain_steps:
+      - description: Halving event reduces block rewards by 50%
+        observable: Block reward drops (e.g., 6.25 → 3.125 BTC); known date in advance
+        lag_days: [0, 0]
+      - description: Miner sell pressure declines as revenue adjusts
+        observable: Miner outflows to exchanges decrease; weaker miners capitulate
+        lag_days: [0, 90]
+      - description: Supply deficit develops against steady or growing demand
+        observable: Exchange balances decline; long-term holder supply increases
+        lag_days: [30, 180]
+      - description: Price appreciation as supply scarcity is priced in
+        observable: BTC breaks prior cycle highs; new ATH within 6-18 months post-halving
+        lag_days: [90, 540]
+    asset_impacts:
+      - ticker: Bitcoin
+        asset_class: crypto
+        direction: bullish
+        sensitivity: high
+        lag_days: [90, 540]
+      - ticker: Ethereum
+        asset_class: crypto
+        direction: bullish
+        sensitivity: medium
+        lag_days: [120, 540]
+      - ticker: Solana
+        asset_class: crypto
+        direction: bullish
+        sensitivity: medium
+        lag_days: [150, 540]
+    confirmation_criteria:
+      - Exchange BTC balances declining post-halving
+      - Miner selling pressure (miner-to-exchange flows) decreasing
+      - Long-term holder supply ratio increasing
+    invalidation_criteria:
+      - Macro liquidity crunch overwhelms supply dynamics
+      - Regulatory shock creates existential demand destruction
+      - Mining economics shift fundamentally (e.g., fee revenue dominates rewards)
+
+  - id: crypto_leverage_liquidation
+    name: Crypto Leverage Liquidation Cascade
+    category: crypto
+    description: >
+      On-chain and exchange-based leverage (perpetual futures, margin) builds
+      up → price decline hits liquidation thresholds → forced selling →
+      cascading liquidations → flash crash → funding rates flip deeply
+      negative → eventual mean reversion. Crypto-specific market microstructure
+      mechanism with no direct analog in traditional macro. Makarov & Schoar
+      (2020, Journal of Finance) cover crypto exchange microstructure;
+      Alexander & Heck (2020) document leveraged position dynamics. The May
+      2021 crash ($58K → $30K) saw >$8B in liquidations in 24 hours. The
+      mechanism is reflexive — high leverage creates fragility, and the unwind
+      amplifies moves far beyond what fundamentals justify.
+    trigger_sources:
+      - market_data
+      - social
+      - spreads
+    trigger_keywords:
+      - liquidation
+      - liquidation cascade
+      - funding rate
+      - open interest
+      - leverage
+      - margin call
+      - perpetual futures
+      - long squeeze
+      - short squeeze
+      - Coinglass
+      - rekt
+      - forced selling
+    chain_steps:
+      - description: Leverage builds to fragile levels
+        observable: Open interest as % of market cap elevated; funding rates >0.1%; liquidation clusters visible
+        lag_days: [0, 7]
+      - description: Price decline triggers initial liquidation wave
+        observable: Price drops >5%, first wave of long liquidations fires
+        lag_days: [0, 1]
+      - description: Cascading liquidations amplify the crash
+        observable: "$1B+ liquidations in 24h; funding rates flip deeply negative; flash crash"
+        lag_days: [0, 1]
+      - description: Mean reversion as leverage is flushed
+        observable: Open interest drops >30%; funding rates normalize; price stabilizes and bounces
+        lag_days: [1, 7]
+    asset_impacts:
+      - ticker: Bitcoin
+        asset_class: crypto
+        direction: bearish
+        sensitivity: high
+        lag_days: [0, 1]
+      - ticker: Ethereum
+        asset_class: crypto
+        direction: bearish
+        sensitivity: high
+        lag_days: [0, 1]
+      - ticker: Solana
+        asset_class: crypto
+        direction: bearish
+        sensitivity: high
+        lag_days: [0, 1]
+    confirmation_criteria:
+      - Open interest drops >30% in 24-48 hours
+      - Total liquidations exceed $1B in a day
+      - Funding rates flip negative across major exchanges
+    invalidation_criteria:
+      - New leverage re-builds quickly (cascade wasn't deep enough)
+      - Macro catalyst overrides the technical flush
+      - Exchange intervention (circuit breakers, insurance fund deployment)
+
+  - id: stablecoin_contagion
+    name: Stablecoin Contagion / De-peg Risk
+    category: crypto
+    description: >
+      A stablecoin loses its peg → forced redemptions → backing assets
+      fire-sold → crypto-wide liquidity crisis. Terra/Luna (May 2022) is the
+      canonical case: UST de-peg → $40B wiped out → BTC collateral liquidated
+      → contagion to 3AC, Celsius, Voyager, eventually FTX. Distinct from
+      regulatory shock (which is policy-driven) — this is endogenous financial
+      contagion within the crypto ecosystem. Lyons & Viswanath-Natraj (2023)
+      on stablecoin stability mechanisms. Observable via stablecoin market cap
+      changes, USDT/USDC premium/discount, Curve 3pool imbalances.
+    trigger_sources:
+      - market_data
+      - news
+      - social
+      - google_trends
+    trigger_keywords:
+      - de-peg
+      - stablecoin
+      - USDT
+      - USDC
+      - DAI
+      - Tether
+      - redemption
+      - stablecoin collapse
+      - peg break
+      - Curve pool
+      - bank run
+      - reserve backing
+      - stablecoin audit
+    chain_steps:
+      - description: Stablecoin peg breaks or confidence shaken
+        observable: Stablecoin trades >1% below peg; Curve pool imbalance >70/30
+        lag_days: [0, 1]
+      - description: Forced redemptions and backing asset fire sales
+        observable: Stablecoin market cap drops; backing assets (Treasuries, crypto) sold
+        lag_days: [0, 3]
+      - description: Contagion spreads through crypto ecosystem
+        observable: Counterparties exposed to stablecoin face insolvency; lending platforms freeze withdrawals
+        lag_days: [1, 14]
+      - description: Broad crypto de-risking and flight to quality
+        observable: BTC dominance rises as altcoins crash harder; total crypto market cap drops >20%
+        lag_days: [3, 30]
+    asset_impacts:
+      - ticker: Bitcoin
+        asset_class: crypto
+        direction: bearish
+        sensitivity: high
+        lag_days: [0, 7]
+      - ticker: Ethereum
+        asset_class: crypto
+        direction: bearish
+        sensitivity: high
+        lag_days: [0, 7]
+      - ticker: Solana
+        asset_class: crypto
+        direction: bearish
+        sensitivity: high
+        lag_days: [0, 7]
+      - ticker: Gold
+        asset_class: metals
+        direction: neutral
+        sensitivity: low
+        lag_days: [3, 14]
+      - ticker: TLT
+        asset_class: bonds
+        direction: neutral
+        sensitivity: low
+        lag_days: [3, 14]
+    confirmation_criteria:
+      - Stablecoin sustained below peg for >24 hours
+      - Stablecoin market cap drops >$5B in a week
+      - Crypto lending platforms pause withdrawals
+    invalidation_criteria:
+      - Peg restored quickly through reserve deployment
+      - Contagion contained to single stablecoin ecosystem
+      - Regulatory backstop or industry bailout stabilizes confidence
+
   # ============================================================================
   # BONDS (1)
   # ============================================================================
@@ -1386,3 +1602,641 @@ mechanisms:
       - Fed signals yield curve control or rate cuts
       - Fiscal austerity reduces issuance
       - Foreign demand for Treasuries increases
+
+  # ============================================================================
+  # CREDIT & FINANCIAL CONDITIONS (2)
+  # ============================================================================
+
+  - id: credit_cycle_ebp
+    name: Credit Cycle / Excess Bond Premium
+    category: credit
+    description: >
+      The excess bond premium (EBP) — the component of credit spreads not
+      explained by default risk (Gilchrist & Zakrajsek 2012, AER) — captures
+      tightening credit conditions that transmit through financial conditions
+      to the real economy. HY OAS widening beyond 500bp has preceded every
+      recession. Distinct from generic risk-off: this is the specific channel
+      of credit availability contracting → financial conditions tightening →
+      real economy weakening.
+    trigger_sources:
+      - spreads
+      - market_data
+      - economic_data
+      - news
+    trigger_keywords:
+      - credit spreads
+      - high yield
+      - HY OAS
+      - excess bond premium
+      - credit conditions
+      - lending standards
+      - financial conditions
+      - credit tightening
+      - investment grade
+      - corporate bonds
+      - SLOOS
+      - loan officer survey
+    chain_steps:
+      - description: Credit spreads widen beyond default-risk fundamentals
+        observable: HY OAS widens >100bp; IG spreads widen; EBP rises
+        lag_days: [0, 5]
+      - description: Financial conditions tighten
+        observable: Chicago Fed FCI tightens; Goldman FCI rises; bank lending standards tighten
+        lag_days: [5, 30]
+      - description: Credit availability contracts
+        observable: SLOOS shows tighter standards; loan growth slows; issuance drops
+        lag_days: [14, 60]
+      - description: Real economy impact materializes
+        observable: Capex declines, hiring slows, small business sentiment drops
+        lag_days: [30, 120]
+    asset_impacts:
+      - ticker: S&P 500
+        asset_class: indices
+        direction: bearish
+        sensitivity: high
+        lag_days: [5, 30]
+      - ticker: Russell 2000
+        asset_class: indices
+        direction: bearish
+        sensitivity: high
+        lag_days: [5, 30]
+      - ticker: TLT
+        asset_class: bonds
+        direction: bullish
+        sensitivity: high
+        lag_days: [7, 30]
+      - ticker: US 10Y Yield
+        asset_class: bonds
+        direction: bearish
+        sensitivity: medium
+        lag_days: [7, 30]
+      - ticker: Gold
+        asset_class: metals
+        direction: bullish
+        sensitivity: medium
+        lag_days: [7, 30]
+      - ticker: DXY
+        asset_class: fx
+        direction: bullish
+        sensitivity: medium
+        lag_days: [5, 14]
+      - ticker: Bitcoin
+        asset_class: crypto
+        direction: bearish
+        sensitivity: medium
+        lag_days: [5, 14]
+      - ticker: Copper
+        asset_class: metals
+        direction: bearish
+        sensitivity: medium
+        lag_days: [14, 60]
+    confirmation_criteria:
+      - HY OAS sustained above 500bp
+      - SLOOS shows net tightening for 2+ quarters
+      - Investment grade issuance drops >30% YoY
+    invalidation_criteria:
+      - Spreads tighten back to normal on policy intervention
+      - SLOOS reverses to easing
+      - Strong earnings growth overrides credit headwinds
+
+  - id: banking_stress_contagion
+    name: Banking Stress Contagion
+    category: credit
+    description: >
+      Bank failures trigger deposit flight, credit contraction, and real
+      economy drag through the credit channel. Diamond & Dybvig (1983) is the
+      canonical model; SVB/Signature/First Republic (March 2023) is the recent
+      empirical case. Distinct from generic risk-off: the transmission is
+      specifically through credit channel impairment — surviving banks tighten
+      lending standards → small business/CRE stress → employment impact.
+    trigger_sources:
+      - news
+      - market_data
+      - spreads
+      - social
+      - google_trends
+    trigger_keywords:
+      - bank failure
+      - bank run
+      - deposit flight
+      - FDIC
+      - bank stress
+      - regional banks
+      - CRE exposure
+      - commercial real estate
+      - uninsured deposits
+      - bank contagion
+      - SVB
+      - lending standards
+    chain_steps:
+      - description: Bank failure or acute stress event
+        observable: Bank stock collapse, FDIC intervention, deposit flight reports
+        lag_days: [0, 1]
+      - description: Contagion fears spread to peer banks
+        observable: Regional bank index (KRE) drops >10%; CDS on banks spike
+        lag_days: [0, 5]
+      - description: Surviving banks tighten lending standards
+        observable: SLOOS shows sharp tightening; loan growth contracts
+        lag_days: [7, 30]
+      - description: Credit channel impairment hits real economy
+        observable: Small business credit access drops; CRE defaults rise; employment weakens
+        lag_days: [30, 120]
+    asset_impacts:
+      - ticker: S&P 500
+        asset_class: indices
+        direction: bearish
+        sensitivity: high
+        lag_days: [0, 7]
+      - ticker: Russell 2000
+        asset_class: indices
+        direction: bearish
+        sensitivity: high
+        lag_days: [0, 7]
+      - ticker: TLT
+        asset_class: bonds
+        direction: bullish
+        sensitivity: high
+        lag_days: [0, 5]
+      - ticker: US 10Y Yield
+        asset_class: bonds
+        direction: bearish
+        sensitivity: high
+        lag_days: [0, 5]
+      - ticker: Gold
+        asset_class: metals
+        direction: bullish
+        sensitivity: medium
+        lag_days: [0, 7]
+      - ticker: DXY
+        asset_class: fx
+        direction: bullish
+        sensitivity: low
+        lag_days: [1, 7]
+      - ticker: Bitcoin
+        asset_class: crypto
+        direction: bearish
+        sensitivity: medium
+        lag_days: [0, 7]
+    confirmation_criteria:
+      - Multiple bank failures or FDIC interventions
+      - KRE index sustained >20% below prior level
+      - SLOOS shows sharp lending standard tightening
+    invalidation_criteria:
+      - Fed emergency lending facilities stabilize deposits
+      - Contagion contained to isolated institutions
+      - Bank earnings recover and lending resumes
+
+  # ============================================================================
+  # CHINA & EM (2)
+  # ============================================================================
+
+  - id: china_credit_impulse
+    name: China Credit Impulse
+    category: china_em
+    description: >
+      China's credit growth (total social financing) leads global industrial
+      production and commodity demand by 6-12 months. Documented by Bianco
+      Research and BIS. Primary transmission channel for copper, iron ore, AUD,
+      and EM equities. Distinct from global liquidity expansion (which is about
+      G4 central bank balance sheets / M2) — China credit impulse is about
+      private credit creation in the world's marginal commodity consumer.
+    trigger_sources:
+      - economic_data
+      - central_bank
+      - news
+      - market_data
+    trigger_keywords:
+      - China credit
+      - total social financing
+      - TSF
+      - PBoC
+      - RRR cut
+      - China stimulus
+      - credit impulse
+      - China property
+      - China PMI
+      - iron ore
+      - China infrastructure
+      - MLF
+      - LPR
+    chain_steps:
+      - description: China credit growth accelerates or decelerates
+        observable: Total social financing data; new yuan loans; PBoC policy rate changes
+        lag_days: [0, 5]
+      - description: China domestic activity responds
+        observable: China PMI, property sales, infrastructure investment data
+        lag_days: [30, 90]
+      - description: Global industrial production and commodity demand follow
+        observable: Global manufacturing PMI inflects; commodity import volumes change
+        lag_days: [90, 270]
+      - description: Commodity prices and EM assets adjust
+        observable: Copper, iron ore prices move; AUD and commodity FX follow; EM equities respond
+        lag_days: [120, 360]
+    asset_impacts:
+      - ticker: Copper
+        asset_class: metals
+        direction: bullish
+        sensitivity: high
+        lag_days: [90, 270]
+      - ticker: AUD/USD
+        asset_class: fx
+        direction: bullish
+        sensitivity: high
+        lag_days: [90, 270]
+      - ticker: Hang Seng
+        asset_class: indices
+        direction: bullish
+        sensitivity: high
+        lag_days: [30, 120]
+      - ticker: WTI Crude
+        asset_class: energy
+        direction: bullish
+        sensitivity: medium
+        lag_days: [90, 270]
+      - ticker: S&P 500
+        asset_class: indices
+        direction: bullish
+        sensitivity: low
+        lag_days: [120, 360]
+      - ticker: Russell 2000
+        asset_class: indices
+        direction: bullish
+        sensitivity: medium
+        lag_days: [120, 360]
+      - ticker: DXY
+        asset_class: fx
+        direction: bearish
+        sensitivity: low
+        lag_days: [120, 360]
+    confirmation_criteria:
+      - TSF growth rate accelerates for 3+ consecutive months
+      - China PMI manufacturing rises above 51
+      - Iron ore and copper prices trend higher
+    invalidation_criteria:
+      - PBoC reverses easing, tightens policy
+      - Property sector stress overwhelms credit stimulus
+      - Credit growth flows into financial assets not real economy
+
+  - id: em_sudden_stop
+    name: EM Sudden Stop / Balance of Payments Crisis
+    category: china_em
+    description: >
+      Current account deficit + external USD debt + capital flow reversal
+      triggers currency collapse and potential contagion to EM peers. Calvo
+      (1998) and the "original sin" literature (Eichengreen & Hausmann).
+      Related to but distinct from the dollar wrecking ball — the wrecking
+      ball is USD strength as the trigger, while sudden stops can be triggered
+      by idiosyncratic EM factors (political crisis, fiscal blowout) that
+      then spread via contagion. Turkey 2018, Argentina 2018, Asian crisis 1997.
+    trigger_sources:
+      - news
+      - market_data
+      - spreads
+      - economic_data
+    trigger_keywords:
+      - EM crisis
+      - capital flight
+      - sudden stop
+      - currency collapse
+      - balance of payments
+      - current account deficit
+      - external debt
+      - EM contagion
+      - devaluation
+      - IMF bailout
+      - capital controls
+      - foreign reserves
+      - sovereign default
+    chain_steps:
+      - description: Idiosyncratic trigger in vulnerable EM economy
+        observable: Political crisis, fiscal blowout, policy error, or external shock
+        lag_days: [0, 2]
+      - description: Capital flows reverse, currency collapses
+        observable: EM FX drops >10%, foreign reserves deplete, bond yields spike
+        lag_days: [0, 7]
+      - description: Contagion spreads to peer EM economies
+        observable: Other EM currencies sell off, EM credit spreads widen broadly
+        lag_days: [3, 14]
+      - description: Global risk appetite falls, flight to safety
+        observable: DXY rallies, Treasuries bid, EM equities sell off broadly
+        lag_days: [5, 21]
+    asset_impacts:
+      - ticker: DXY
+        asset_class: fx
+        direction: bullish
+        sensitivity: medium
+        lag_days: [0, 7]
+      - ticker: TLT
+        asset_class: bonds
+        direction: bullish
+        sensitivity: medium
+        lag_days: [0, 7]
+      - ticker: Gold
+        asset_class: metals
+        direction: bullish
+        sensitivity: medium
+        lag_days: [0, 7]
+      - ticker: AUD/USD
+        asset_class: fx
+        direction: bearish
+        sensitivity: high
+        lag_days: [0, 7]
+      - ticker: Copper
+        asset_class: metals
+        direction: bearish
+        sensitivity: medium
+        lag_days: [3, 14]
+      - ticker: S&P 500
+        asset_class: indices
+        direction: bearish
+        sensitivity: low
+        lag_days: [3, 14]
+      - ticker: Hang Seng
+        asset_class: indices
+        direction: bearish
+        sensitivity: medium
+        lag_days: [1, 7]
+      - ticker: WTI Crude
+        asset_class: energy
+        direction: bearish
+        sensitivity: low
+        lag_days: [3, 14]
+    confirmation_criteria:
+      - Multiple EM currencies fall >5% in a month
+      - EM sovereign CDS spreads widen >100bp
+      - Capital flow data shows sustained outflows
+    invalidation_criteria:
+      - IMF program restores confidence
+      - Contagion contained to single country
+      - Global risk appetite overcomes EM stress
+
+  # ============================================================================
+  # FISCAL & SOVEREIGN (1)
+  # ============================================================================
+
+  - id: fiscal_dominance
+    name: Fiscal Dominance
+    category: fiscal
+    description: >
+      Government deficits become large enough that monetary policy is
+      effectively constrained by fiscal needs. Sargent & Wallace (1981),
+      "Some Unpleasant Monetarist Arithmetic." Increasingly relevant post-COVID
+      with debt/GDP ratios at wartime levels. Transmission: large fiscal
+      deficits → bond supply pressure → central bank forced to accommodate →
+      inflation persistence. The term premium mechanism captures the bond
+      market symptom, but fiscal dominance is a broader regime where the
+      entire monetary policy transmission changes.
+    trigger_sources:
+      - economic_data
+      - news
+      - central_bank
+      - spreads
+      - prediction_market
+    trigger_keywords:
+      - fiscal dominance
+      - debt to GDP
+      - fiscal deficit
+      - debt sustainability
+      - bond vigilantes
+      - debt spiral
+      - interest expense
+      - CBO projection
+      - fiscal space
+      - unfunded liabilities
+      - Truss moment
+      - gilt crisis
+      - sovereign risk
+    chain_steps:
+      - description: Fiscal deficit exceeds sustainable threshold
+        observable: Deficit/GDP >6%, interest expense/revenue rising, CBO warnings
+        lag_days: [0, 30]
+      - description: Bond market demands higher term premium
+        observable: Long-end yields rise, auction demand weakens, bid-to-cover falls
+        lag_days: [7, 60]
+      - description: Central bank constrained or forced to accommodate
+        observable: Fed buys bonds to cap yields or rhetoric signals fiscal concerns
+        lag_days: [30, 180]
+      - description: Inflation persistence as monetary discipline erodes
+        observable: Breakevens rise, inflation prints sticky, real rates suppressed
+        lag_days: [60, 360]
+    asset_impacts:
+      - ticker: TLT
+        asset_class: bonds
+        direction: bearish
+        sensitivity: high
+        lag_days: [7, 60]
+      - ticker: US 10Y Yield
+        asset_class: bonds
+        direction: bullish
+        sensitivity: high
+        lag_days: [7, 60]
+      - ticker: US 30Y Yield
+        asset_class: bonds
+        direction: bullish
+        sensitivity: high
+        lag_days: [7, 60]
+      - ticker: Gold
+        asset_class: metals
+        direction: bullish
+        sensitivity: high
+        lag_days: [14, 90]
+      - ticker: Bitcoin
+        asset_class: crypto
+        direction: bullish
+        sensitivity: medium
+        lag_days: [14, 90]
+      - ticker: DXY
+        asset_class: fx
+        direction: bearish
+        sensitivity: medium
+        lag_days: [30, 180]
+      - ticker: S&P 500
+        asset_class: indices
+        direction: bearish
+        sensitivity: medium
+        lag_days: [30, 120]
+      - ticker: Nasdaq
+        asset_class: indices
+        direction: bearish
+        sensitivity: high
+        lag_days: [14, 60]
+    confirmation_criteria:
+      - Federal interest expense exceeds defense spending
+      - Treasury auction tails frequent (>2bp tail 3+ times in a month)
+      - Debt/GDP trajectory exceeds CBO baseline projections
+    invalidation_criteria:
+      - Fiscal consolidation (spending cuts or tax increases)
+      - Strong nominal GDP growth reduces debt/GDP ratio
+      - Foreign demand for Treasuries remains robust
+
+  # ============================================================================
+  # CB POLICY DIVERGENCE (1)
+  # ============================================================================
+
+  - id: cb_policy_divergence
+    name: Central Bank Policy Divergence
+    category: fx_specific
+    description: >
+      Major central banks move in opposite directions — e.g., Fed hiking while
+      BoJ holds, or ECB cutting while Fed holds. Engel & West (2005) on
+      exchange rates and fundamentals. Primary driver of major FX trends beyond
+      Fed-centric mechanisms. The EUR/USD move from 1.22 to 0.96 in 2022 was
+      almost entirely a divergence trade (Fed hiking aggressively, ECB lagging).
+      Captures cross-rate dynamics driven by relative policy rather than
+      absolute USD direction.
+    trigger_sources:
+      - central_bank
+      - economic_data
+      - spreads
+      - news
+      - market_data
+    trigger_keywords:
+      - policy divergence
+      - rate differential
+      - ECB
+      - BoJ
+      - BoE
+      - central bank divergence
+      - relative policy
+      - 2Y spread
+      - swap rate differential
+      - monetary policy gap
+      - interest rate gap
+    chain_steps:
+      - description: Central banks signal or execute divergent policy paths
+        observable: One bank hikes/holds while another cuts; forward guidance diverges
+        lag_days: [0, 3]
+      - description: Rate differentials widen
+        observable: 2Y swap spread widens between economies; carry attractiveness shifts
+        lag_days: [0, 7]
+      - description: FX cross-rates trend in direction of rate differential
+        observable: Currency of hiking bank strengthens; currency of cutting bank weakens
+        lag_days: [3, 30]
+      - description: Capital flows reinforce FX move
+        observable: Portfolio flows shift toward higher-yielding economy; FX vol elevated
+        lag_days: [14, 90]
+    asset_impacts:
+      - ticker: EUR/USD
+        asset_class: fx
+        direction: neutral
+        sensitivity: high
+        lag_days: [0, 14]
+      - ticker: USD/JPY
+        asset_class: fx
+        direction: neutral
+        sensitivity: high
+        lag_days: [0, 14]
+      - ticker: GBP/USD
+        asset_class: fx
+        direction: neutral
+        sensitivity: high
+        lag_days: [0, 14]
+      - ticker: DXY
+        asset_class: fx
+        direction: neutral
+        sensitivity: medium
+        lag_days: [0, 14]
+      - ticker: Gold
+        asset_class: metals
+        direction: neutral
+        sensitivity: low
+        lag_days: [7, 30]
+    confirmation_criteria:
+      - 2Y swap spread between major economies widens >100bp
+      - FX pair trend aligns with rate differential direction for 3+ months
+      - Forward rate agreements price continued divergence
+    invalidation_criteria:
+      - Central banks converge (both cut or both hold)
+      - Growth shock forces policy alignment
+      - FX intervention disrupts rate-differential signaling
+
+  # ============================================================================
+  # COMMODITY STRUCTURAL (1)
+  # ============================================================================
+
+  - id: commodity_supercycle
+    name: Commodity Supercycle
+    category: commodity
+    description: >
+      Long-duration (10-20 year) structural bull/bear cycles driven by capex
+      underinvestment → supply deficit → price spike → capex boom → oversupply.
+      Erten & Ocampo (2013), "Super Cycles of Commodity Prices since the
+      Mid-Nineteenth Century." Distinct from energy supply shock (which is
+      acute/event-driven) — this is a multi-year structural mechanism relevant
+      for strategic allocation. Current cycle driven by decade of upstream
+      underinvestment, energy transition metal demand, and ESG-driven capex
+      constraints.
+    trigger_sources:
+      - economic_data
+      - market_data
+      - news
+    trigger_keywords:
+      - supercycle
+      - capex underinvestment
+      - supply deficit
+      - mine supply
+      - upstream investment
+      - commodity cycle
+      - energy transition metals
+      - lithium
+      - uranium
+      - greenflation
+      - resource nationalism
+      - critical minerals
+    chain_steps:
+      - description: Structural supply deficit emerges from years of underinvestment
+        observable: Inventory-to-consumption ratios at multi-year lows; capex/depreciation <1
+        lag_days: [0, 180]
+      - description: Prices begin sustained uptrend as deficit draws inventories
+        observable: Commodity prices break above long-term moving averages; backwardation
+        lag_days: [90, 360]
+      - description: Producers respond with capex but supply lag persists
+        observable: Mining capex announcements increase but new supply 3-7 years away
+        lag_days: [360, 1800]
+      - description: Broad commodity complex re-rates
+        observable: Commodity equities re-rate; commodity currencies strengthen
+        lag_days: [180, 720]
+    asset_impacts:
+      - ticker: Copper
+        asset_class: metals
+        direction: bullish
+        sensitivity: high
+        lag_days: [90, 720]
+      - ticker: WTI Crude
+        asset_class: energy
+        direction: bullish
+        sensitivity: high
+        lag_days: [90, 720]
+      - ticker: Gold
+        asset_class: metals
+        direction: bullish
+        sensitivity: medium
+        lag_days: [90, 720]
+      - ticker: Silver
+        asset_class: metals
+        direction: bullish
+        sensitivity: high
+        lag_days: [90, 720]
+      - ticker: AUD/USD
+        asset_class: fx
+        direction: bullish
+        sensitivity: high
+        lag_days: [90, 360]
+      - ticker: USD/CAD
+        asset_class: fx
+        direction: bearish
+        sensitivity: medium
+        lag_days: [90, 360]
+      - ticker: S&P 500
+        asset_class: indices
+        direction: neutral
+        sensitivity: low
+        lag_days: [180, 720]
+    confirmation_criteria:
+      - Commodity/equity ratio (GSCI/S&P 500) trending higher for 12+ months
+      - Global upstream capex remains below replacement level
+      - Inventory-to-consumption ratios at multi-decade lows
+    invalidation_criteria:
+      - Demand destruction from recession overwhelms supply deficit
+      - Technological breakthrough expands supply rapidly
+      - Major new supply sources discovered and developed
