@@ -817,6 +817,31 @@ def _render_scenario_card(
 
         dir_badge = f'<span class="badge badge-{entry.direction.value}">{entry.direction.value}</span>'
 
+        # Build chain progress visualization
+        chain_html = ""
+        if entry.chain_progress:
+            status_icons = {
+                "confirmed": "\u2713",
+                "emerging": "~",
+                "not_started": "\u00b7",
+                "invalidated": "\u2717",
+            }
+            steps_html = ""
+            for i, step in enumerate(entry.chain_progress):
+                status = step.status if step.status in status_icons else "not_started"
+                icon = status_icons[status]
+                status_label = status.replace("_", " ")
+                desc = step.description[:30] + "\u2026" if len(step.description) > 30 else step.description
+                if i > 0:
+                    steps_html += '<span class="chain-arrow">\u2192</span>'
+                steps_html += (
+                    f'<span class="chain-step step-{status}">'
+                    f'<span class="chain-step-desc" title="{step.description}">{desc}</span>'
+                    f'<span class="chain-step-status">{icon} {status_label}</span>'
+                    f"</span>"
+                )
+            chain_html = f'<div class="transmission-chain">{steps_html}</div>'
+
         scenario_blocks += (
             f'<div class="scenario-block">'
             f'<div class="scenario-header">'
@@ -826,6 +851,7 @@ def _render_scenario_card(
             f'<span class="stage-chip {stage_class}">{entry.chain_stage}</span>'
             f" {dir_badge}"
             f"</div>"
+            f"{chain_html}"
             f"{rationale_html}"
             f"{watch_html}"
             f"</div>"

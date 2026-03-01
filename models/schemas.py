@@ -213,6 +213,7 @@ class AssetScenarioEntry(BaseModel):
     rationale: str = ""
     trigger_evidence: str = ""
     chain_stage: str = "early"
+    chain_progress: list[ChainStepProgress] = Field(default_factory=list)
     watch_items: list[str] = Field(default_factory=list)
 
 

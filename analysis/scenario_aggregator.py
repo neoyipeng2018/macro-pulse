@@ -42,6 +42,7 @@ def aggregate_scenarios(
                 rationale=impact.rationale,
                 trigger_evidence=scenario.trigger_evidence,
                 chain_stage=scenario.current_stage,
+                chain_progress=scenario.chain_progress,
                 watch_items=scenario.watch_items,
             )
             ticker_entries.setdefault(impact.ticker, []).append(

@@ -855,6 +855,58 @@ details[data-testid="stExpander"] {
     color: #8892a4;
     border: 1px solid rgba(74, 85, 104, 0.4);
 }
+
+/* === TRANSMISSION CHAIN === */
+.transmission-chain {
+    display: flex;
+    align-items: flex-start;
+    gap: 0;
+    margin: 6px 0 4px 0;
+    padding: 6px 8px;
+    background: rgba(10, 14, 20, 0.4);
+    border-radius: 4px;
+    overflow-x: auto;
+    flex-wrap: nowrap;
+}
+.chain-step {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    gap: 2px;
+    min-width: 0;
+    flex-shrink: 1;
+}
+.chain-step-desc {
+    font-size: 0.6rem;
+    color: #8892a4;
+    text-align: center;
+    line-height: 1.3;
+    max-width: 140px;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+}
+.chain-step-status {
+    font-size: 0.55rem;
+    font-weight: 700;
+    letter-spacing: 0.06em;
+    text-transform: uppercase;
+}
+.chain-arrow {
+    color: #2a3442;
+    font-size: 0.7rem;
+    padding: 0 4px;
+    flex-shrink: 0;
+    margin-top: 2px;
+}
+.step-confirmed .chain-step-desc { color: #00E676; }
+.step-confirmed .chain-step-status { color: #00E676; }
+.step-emerging .chain-step-desc { color: #FFEA00; }
+.step-emerging .chain-step-status { color: #FFEA00; }
+.step-not_started .chain-step-desc { color: #4a5568; }
+.step-not_started .chain-step-status { color: #4a5568; }
+.step-invalidated .chain-step-desc { color: #FF1744; text-decoration: line-through; }
+.step-invalidated .chain-step-status { color: #FF1744; }
 </style>
 """
 
