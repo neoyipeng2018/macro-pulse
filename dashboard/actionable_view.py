@@ -8,6 +8,7 @@ from dataclasses import dataclass, field
 import streamlit as st
 
 from analysis.technicals import TechnicalSnapshot, compute_technicals
+from config.settings import settings
 from models.schemas import (
     AssetClass,
     AssetScenarioEntry,
@@ -553,20 +554,90 @@ class ScenarioAssetIntel:
     exit_condition: str = ""
 
 
+def _build_name_to_ticker_map() -> dict[str, str]:
+    """Build a mapping from human-readable asset names to Yahoo Finance tickers.
+
+    Uses assets.yaml config. Keys are lowercased for case-insensitive matching.
+    Also maps common LLM-generated name variants.
+    """
+    name_to_ticker: dict[str, str] = {}
+    for _class, items in settings.assets.items():
+        for item in items:
+            ticker = item["ticker"]
+            name = item["name"]
+            name_to_ticker[name.lower()] = ticker
+            # Also map the ticker itself (identity)
+            name_to_ticker[ticker.lower()] = ticker
+    # Common LLM-generated aliases that differ from assets.yaml names
+    _aliases = {
+        "wti crude": "CL=F",
+        "wti": "CL=F",
+        "brent crude": "BZ=F",
+        "brent": "BZ=F",
+        "dxy": "DX-Y.NYB",
+        "us dollar index": "DX-Y.NYB",
+        "dollar index": "DX-Y.NYB",
+        "us 10y yield": "^TNX",
+        "us 10y": "^TNX",
+        "10y yield": "^TNX",
+        "us 30y yield": "^TYX",
+        "us 30y": "^TYX",
+        "30y yield": "^TYX",
+        "us 5y yield": "^FVX",
+        "us 5y": "^FVX",
+        "5y yield": "^FVX",
+        "s&p 500": "^GSPC",
+        "s&p500": "^GSPC",
+        "spx": "^GSPC",
+        "nasdaq": "^IXIC",
+        "dow jones": "^DJI",
+        "dow": "^DJI",
+        "russell 2000": "^RUT",
+        "vix": "^VIX",
+        "ftse 100": "^FTSE",
+        "ftse": "^FTSE",
+        "nikkei 225": "^N225",
+        "nikkei": "^N225",
+        "hang seng": "^HSI",
+        "eur/usd": "EURUSD=X",
+        "gbp/usd": "GBPUSD=X",
+        "usd/jpy": "USDJPY=X",
+        "aud/usd": "AUDUSD=X",
+        "usd/cad": "USDCAD=X",
+        "usd/chf": "USDCHF=X",
+        "usd/cnh": "USDCNH=X",
+        "btc": "BTC-USD",
+        "eth": "ETH-USD",
+        "sol": "SOL-USD",
+        "natural gas": "NG=F",
+        "natgas": "NG=F",
+        "copper": "HG=F",
+        "20+ year treasury etf": "TLT",
+    }
+    for alias, ticker in _aliases.items():
+        name_to_ticker.setdefault(alias, ticker)
+    return name_to_ticker
+
+
 def build_scenario_intel(report: WeeklyReport) -> list[ScenarioAssetIntel]:
     """Build ScenarioAssetIntel list from report's scenario_views."""
+    # Build name→ticker map so we can match narrative asset names to scenario tickers
+    name_to_ticker = _build_name_to_ticker_map()
+
     # Build ticker → consensus lookup from narratives (highest-confidence per ticker)
     ticker_consensus: dict[str, dict] = {}
     for narrative in report.narratives:
         for asent in narrative.asset_sentiments:
-            existing = ticker_consensus.get(asent.ticker)
+            # Resolve narrative asset name to canonical ticker
+            resolved_ticker = name_to_ticker.get(asent.ticker.lower(), asent.ticker)
+            existing = ticker_consensus.get(resolved_ticker)
             if existing is None or narrative.confidence > existing["confidence"]:
                 consensus_view = asent.consensus_view or narrative.consensus_view
                 try:
                     edge_type = EdgeType(asent.edge_type) if asent.edge_type else narrative.edge_type
                 except ValueError:
                     edge_type = narrative.edge_type
-                ticker_consensus[asent.ticker] = {
+                ticker_consensus[resolved_ticker] = {
                     "confidence": narrative.confidence,
                     "consensus_view": consensus_view,
                     "consensus_sources": narrative.consensus_sources,
@@ -578,14 +649,19 @@ def build_scenario_intel(report: WeeklyReport) -> list[ScenarioAssetIntel]:
 
     results: list[ScenarioAssetIntel] = []
     for sv in report.scenario_views:
-        cons = ticker_consensus.get(sv.ticker, {})
+        resolved_sv_ticker = name_to_ticker.get(sv.ticker.lower(), sv.ticker)
+        cons = ticker_consensus.get(resolved_sv_ticker, {})
+        # Recompute avg_probability from scenario entries if missing from stored data
+        avg_prob = sv.avg_probability
+        if avg_prob == 0.0 and sv.scenarios:
+            avg_prob = sum(s.probability for s in sv.scenarios) / len(sv.scenarios)
         results.append(
             ScenarioAssetIntel(
                 ticker=sv.ticker,
                 asset_class=sv.asset_class,
                 net_direction=sv.net_direction,
                 net_score=sv.net_score,
-                avg_probability=sv.avg_probability,
+                avg_probability=round(avg_prob, 4),
                 scenarios=sv.scenarios,
                 conflict_flag=sv.conflict_flag,
                 scenario_count=sv.scenario_count,
