@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import re
 from collections import Counter
 from dataclasses import dataclass, field
 
@@ -553,8 +554,6 @@ class ScenarioAssetIntel:
     catalyst: str = ""
     exit_condition: str = ""
 
-
-import re
 
 # Known financial source names to extract from consensus_view text
 _SOURCE_PATTERNS: list[tuple[str, re.Pattern[str]]] = [
