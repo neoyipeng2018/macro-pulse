@@ -540,6 +540,7 @@ class ScenarioAssetIntel:
     asset_class: AssetClass
     net_direction: SentimentDirection
     net_score: float
+    avg_probability: float = 0.0
     scenarios: list[AssetScenarioEntry] = field(default_factory=list)
     conflict_flag: bool = False
     scenario_count: int = 0
@@ -584,6 +585,7 @@ def build_scenario_intel(report: WeeklyReport) -> list[ScenarioAssetIntel]:
                 asset_class=sv.asset_class,
                 net_direction=sv.net_direction,
                 net_score=sv.net_score,
+                avg_probability=sv.avg_probability,
                 scenarios=sv.scenarios,
                 conflict_flag=sv.conflict_flag,
                 scenario_count=sv.scenario_count,
@@ -734,6 +736,7 @@ def _render_scenario_card(
         f'<span class="asset-class-label">{ac_label}</span>'
         f'<span class="badge badge-{dir_val}">{dir_val}</span>'
         f'<span class="{score_class} score-value">{score_sign}{intel.net_score:.2f}</span>'
+        f'<span class="avg-prob-chip">{intel.avg_probability:.0%} avg prob</span>'
         f" {scenario_count_html}"
         f"{conflict_html}"
         f"</div>"

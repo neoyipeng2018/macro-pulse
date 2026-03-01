@@ -224,6 +224,7 @@ class ScenarioAssetView(BaseModel):
     scenarios: list[AssetScenarioEntry] = Field(default_factory=list)
     net_direction: SentimentDirection = SentimentDirection.NEUTRAL
     net_score: float = 0.0
+    avg_probability: float = 0.0
     dominant_scenario: str = ""
     scenario_count: int = 0
     conflict_flag: bool = False     # True if scenarios disagree on direction

@@ -830,6 +830,19 @@ details[data-testid="stExpander"] {
     border: 1px solid rgba(255, 145, 0, 0.35);
 }
 
+/* === AVG PROBABILITY CHIP === */
+.avg-prob-chip {
+    display: inline-block;
+    padding: 2px 8px;
+    border-radius: 3px;
+    font-size: 0.6rem;
+    font-weight: 600;
+    letter-spacing: 0.05em;
+    background: rgba(99, 179, 237, 0.15);
+    color: #63b3ed;
+    border: 1px solid rgba(99, 179, 237, 0.3);
+}
+
 /* === SCENARIO COUNT CHIP === */
 .scenario-count-chip {
     display: inline-block;

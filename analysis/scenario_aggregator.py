@@ -75,6 +75,13 @@ def aggregate_scenarios(
         else:
             net_direction = SentimentDirection.NEUTRAL
 
+        # Average probability across scenarios for this asset
+        avg_probability = (
+            sum(e.probability for e in scenario_list) / len(scenario_list)
+            if scenario_list
+            else 0.0
+        )
+
         # Detect conflicts: scenarios with probability >= 0.2 disagree on direction
         significant_directions = {
             e.direction
@@ -94,6 +101,7 @@ def aggregate_scenarios(
                 scenarios=scenario_list,
                 net_direction=net_direction,
                 net_score=round(net_score, 4),
+                avg_probability=round(avg_probability, 4),
                 dominant_scenario=dominant,
                 scenario_count=len(scenario_list),
                 conflict_flag=conflict_flag,
