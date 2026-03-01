@@ -30,6 +30,8 @@ class SignalSource(str, Enum):
     COT = "cot"
     FEAR_GREED = "fear_greed"
     PREDICTION_MARKET = "prediction_market"
+    GOOGLE_TRENDS = "google_trends"
+    SPREADS = "spreads"
 
 
 class EconomicRegime(str, Enum):
@@ -87,7 +89,7 @@ class Narrative(BaseModel):
     asset_sentiments: list[AssetSentiment] = Field(default_factory=list)
     affected_asset_classes: list[AssetClass] = Field(default_factory=list)
     signals: list[Signal] = Field(default_factory=list)
-    horizon: str = "1-4 weeks"   # expected timeframe for thesis to play out
+    horizon: str = "1 week"   # expected timeframe for thesis to play out
     confidence: float = 0.5      # 0-1, overall narrative confidence
     trend: str = "stable"        # intensifying, stable, fading
     # Consensus vs. edge analysis

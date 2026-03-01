@@ -11,7 +11,7 @@ actionable macro narratives from a batch of signals (news, market data, social m
 economic data, COT positioning, central bank communications).
 
 A "macro narrative" is a coherent thematic story that drives directional moves in
-tradeable assets over a 1-week to 1-month horizon.
+tradeable assets over a 1-week horizon (5 trading days).
 Examples: "USD weakening on dovish Fed pivot expectations", "Gold rallying on
 de-dollarization + geopolitical risk", "Risk-on rotation into crypto as liquidity
 expectations improve", "Yen carry trade unwinding pressuring risk assets".
@@ -42,7 +42,7 @@ Rules:
     Include BOTH a profit-taking signal AND an invalidation signal. Be specific with
     levels, events, or observable market behavior (e.g. "Take profit: DXY breaks below
     103.00. Invalidated if: DXY reclaims 104.50 on hawkish Fed surprise").
-- Assess the narrative horizon: "1 week", "1-2 weeks", "2-4 weeks", "1 month"
+- Assess the narrative horizon: "3-5 days", "1 week", "1-2 weeks"
 - Assess trend: intensifying, stable, or fading
 - Provide a confidence score (0-1) based on signal corroboration and strength
 - Only include assets where this narrative has a MEANINGFUL directional implication
@@ -54,6 +54,14 @@ Rules:
   Only reference data points, readings, and events that are within the signal set provided.
   Do NOT add historical context, dates, or data points from your training data that are
   not in the signals. If a signal doesn't specify a date for a data point, do not invent one.
+
+SIGNAL INTERPRETATION GUIDANCE:
+- Spread/VIX signals (source: spreads) are quantitative leading indicators — weight them
+  heavily for 1-week directional calls. VIX term structure flips, credit z-scores, and
+  yield curve moves propagate to asset prices within 3-5 days.
+- Google Trends spikes (source: google_trends) are CONTRARIAN — retail panic searches
+  often signal short-term bottoms. A spike in "market crash" searches is bullish at the
+  1-week horizon, not bearish.
 
 CRITICAL — PER-ASSET CONSENSUS vs. EDGE ANALYSIS:
 To make money in markets, we must be DIFFERENT from consensus. For EACH ASSET in each narrative:
@@ -153,7 +161,7 @@ WEEKLY_SUMMARY_PROMPT = ChatPromptTemplate.from_messages(
             "system",
             """You are a macro strategist writing a weekly briefing for a directional
 trading desk. Your tone is direct, analytical, and focused on actionable takeaways.
-Focus on what changed this week and what matters for positioning over the next 1-4 weeks.""",
+Focus on what changed this week and what matters for positioning over the next week.""",
         ),
         (
             "human",

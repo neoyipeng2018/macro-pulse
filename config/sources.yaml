@@ -71,3 +71,32 @@ fred_series:
     name: CBOE VIX
   - id: BAMLH0A0HYM2
     name: HY OAS Spread
+  - id: SOFR
+    name: Secured Overnight Financing Rate
+  - id: T10Y3M
+    name: 10Y-3M Treasury Spread
+  - id: STLFSI2
+    name: St. Louis Fed Financial Stress Index
+
+google_trends:
+  timeframe: "today 1-m"
+  keywords:
+    # Stress
+    - recession
+    - market crash
+    - bank run
+    - layoffs
+    - margin call
+    - sell stocks
+    # Assets
+    - gold price
+    - bitcoin crash
+    - oil price
+    - dollar collapse
+    - safe haven
+    # Policy
+    - rate cut
+    - inflation
+    - tariff
+    - trade war
+    - sanctions

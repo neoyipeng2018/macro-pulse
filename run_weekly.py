@@ -28,6 +28,8 @@ def collect_signals(sources: list[str] | None = None) -> list:
     from collectors.market_data import MarketDataCollector
     from collectors.economic_calendar import EconomicCalendarCollector
     from collectors.prediction_markets import PredictionMarketCollector
+    from collectors.spreads import SpreadsCollector
+    from collectors.google_trends import GoogleTrendsCollector
 
     collectors = {
         "news": RSSNewsCollector,
@@ -39,6 +41,8 @@ def collect_signals(sources: list[str] | None = None) -> list:
         "market_data": MarketDataCollector,
         "economic_calendar": EconomicCalendarCollector,
         "prediction_markets": PredictionMarketCollector,
+        "spreads": SpreadsCollector,
+        "google_trends": GoogleTrendsCollector,
     }
 
     enabled = sources or list(collectors.keys())
@@ -211,7 +215,7 @@ def main():
     parser.add_argument(
         "--sources",
         nargs="+",
-        choices=["news", "reddit", "central_bank", "economic_data", "cot", "fear_greed", "market_data", "economic_calendar", "prediction_markets"],
+        choices=["news", "reddit", "central_bank", "economic_data", "cot", "fear_greed", "market_data", "economic_calendar", "prediction_markets", "spreads", "google_trends"],
         help="Specific sources to collect from (default: all)",
     )
     args = parser.parse_args()

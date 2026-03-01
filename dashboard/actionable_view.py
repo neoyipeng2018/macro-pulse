@@ -36,6 +36,8 @@ SOURCE_LABELS = {
     SignalSource.COT: "COT",
     SignalSource.FEAR_GREED: "Fear/Greed",
     SignalSource.PREDICTION_MARKET: "Predictions",
+    SignalSource.GOOGLE_TRENDS: "Trends",
+    SignalSource.SPREADS: "Spreads",
 }
 
 
