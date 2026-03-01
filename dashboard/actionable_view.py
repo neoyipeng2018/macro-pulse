@@ -554,6 +554,41 @@ class ScenarioAssetIntel:
     exit_condition: str = ""
 
 
+import re
+
+# Known financial source names to extract from consensus_view text
+_SOURCE_PATTERNS: list[tuple[str, re.Pattern[str]]] = [
+    ("Goldman Sachs", re.compile(r"Goldman\s*Sachs|Goldman", re.I)),
+    ("JPMorgan", re.compile(r"JPMorgan|JP\s*Morgan|JPM", re.I)),
+    ("Morgan Stanley", re.compile(r"Morgan\s*Stanley", re.I)),
+    ("CME FedWatch", re.compile(r"CME\s*FedWatch|FedWatch", re.I)),
+    ("Bloomberg", re.compile(r"Bloomberg", re.I)),
+    ("Reuters", re.compile(r"Reuters", re.I)),
+    ("Citi", re.compile(r"\bCiti\b|Citigroup", re.I)),
+    ("BofA", re.compile(r"BofA|Bank\s*of\s*America", re.I)),
+    ("UBS", re.compile(r"\bUBS\b", re.I)),
+    ("Deutsche Bank", re.compile(r"Deutsche\s*Bank", re.I)),
+    ("Barclays", re.compile(r"Barclays", re.I)),
+    ("HSBC", re.compile(r"\bHSBC\b", re.I)),
+    ("Nomura", re.compile(r"Nomura", re.I)),
+    ("ING", re.compile(r"\bING\b", re.I)),
+    ("Wells Fargo", re.compile(r"Wells\s*Fargo", re.I)),
+    ("Options Market", re.compile(r"options\s*market", re.I)),
+    ("Futures Market", re.compile(r"futures\s*(market|pricing)", re.I)),
+    ("Sell-side", re.compile(r"sell[\-\u2010\u2011\u2012\u2013 ]side", re.I)),
+    ("Market Pricing", re.compile(r"market\s+(?:expects?|pricing|prices?|forecast)", re.I)),
+    ("Consensus", re.compile(r"\bconsensus\b", re.I)),
+    ("Analysts", re.compile(r"\banalysts?\b", re.I)),
+]
+
+
+def _extract_sources(text: str) -> list[str]:
+    """Extract financial source citations from consensus_view text."""
+    if not text:
+        return []
+    return [name for name, pattern in _SOURCE_PATTERNS if pattern.search(text)]
+
+
 def _build_name_to_ticker_map() -> dict[str, str]:
     """Build a mapping from human-readable asset names to Yahoo Finance tickers.
 
@@ -637,10 +672,12 @@ def build_scenario_intel(report: WeeklyReport) -> list[ScenarioAssetIntel]:
                     edge_type = EdgeType(asent.edge_type) if asent.edge_type else narrative.edge_type
                 except ValueError:
                     edge_type = narrative.edge_type
+                # Extract sources from text if not provided at narrative level
+                sources = narrative.consensus_sources or _extract_sources(consensus_view)
                 ticker_consensus[resolved_ticker] = {
                     "confidence": narrative.confidence,
                     "consensus_view": consensus_view,
-                    "consensus_sources": narrative.consensus_sources,
+                    "consensus_sources": sources,
                     "edge_type": edge_type,
                     "edge_rationale": asent.edge_rationale or narrative.edge_rationale,
                     "catalyst": getattr(asent, "catalyst", "") or "",
