@@ -52,6 +52,41 @@ def extract_narratives(signals: list[Signal], llm: BaseChatModel) -> list[Narrat
                 if sid in signal_map
             ]
 
+            # Backfill: ensure each asset sentiment has its market_data
+            # signal attached (the LLM sometimes omits them).
+            matched_ids = {s.id for s in matched_signals}
+            for sent in item.get("asset_sentiments", []):
+                ticker = str(sent.get("ticker", ""))
+                if not ticker:
+                    continue
+                # Check if a market_data signal for this ticker is already matched
+                has_market = any(
+                    s.source.value == "market_data"
+                    and s.metadata.get("ticker") == ticker
+                    for s in matched_signals
+                )
+                if has_market:
+                    continue
+                # Also match by name (e.g. "Bitcoin" → metadata ticker "BTC-USD")
+                has_market_by_name = any(
+                    s.source.value == "market_data"
+                    and ticker.lower() in s.title.lower()
+                    for s in matched_signals
+                )
+                if has_market_by_name:
+                    continue
+                # Find the missing market_data signal in the full pool
+                for s in signals:
+                    if s.id in matched_ids:
+                        continue
+                    if s.source.value != "market_data":
+                        continue
+                    meta_ticker = s.metadata.get("ticker", "")
+                    if meta_ticker == ticker or ticker.lower() in s.title.lower():
+                        matched_signals.append(s)
+                        matched_ids.add(s.id)
+                        break
+
             # Parse asset sentiments
             asset_sentiments: list[AssetSentiment] = []
             for sent in item.get("asset_sentiments", []):
