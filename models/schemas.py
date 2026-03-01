@@ -29,6 +29,7 @@ class SignalSource(str, Enum):
     ECONOMIC_DATA = "economic_data"
     COT = "cot"
     FEAR_GREED = "fear_greed"
+    PREDICTION_MARKET = "prediction_market"
 
 
 class EconomicRegime(str, Enum):
