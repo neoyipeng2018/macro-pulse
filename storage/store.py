@@ -6,12 +6,17 @@ from datetime import datetime
 from pathlib import Path
 
 from models.schemas import (
+    ActiveScenario,
     AssetClass,
+    AssetScenarioEntry,
     AssetSentiment,
+    ChainStepProgress,
     EconomicRegime,
     EdgeType,
     Narrative,
     PriceValidation,
+    ScenarioAssetImpact,
+    ScenarioAssetView,
     SentimentDirection,
     Signal,
     SignalSource,
@@ -105,6 +110,41 @@ def init_db() -> None:
             actual_return_pct REAL NOT NULL,
             actual_direction TEXT NOT NULL,
             hit INTEGER NOT NULL DEFAULT 0,
+            FOREIGN KEY (report_id) REFERENCES weekly_reports(id)
+        );
+
+        CREATE TABLE IF NOT EXISTS active_scenarios (
+            id TEXT PRIMARY KEY,
+            report_id TEXT NOT NULL,
+            mechanism_id TEXT,
+            mechanism_name TEXT,
+            category TEXT,
+            probability REAL,
+            trigger_signals TEXT,
+            trigger_evidence TEXT,
+            chain_progress TEXT,
+            current_stage TEXT,
+            expected_magnitude TEXT,
+            asset_impacts TEXT,
+            watch_items TEXT,
+            confirmation_status TEXT,
+            invalidation_risk TEXT,
+            horizon TEXT,
+            confidence REAL,
+            FOREIGN KEY (report_id) REFERENCES weekly_reports(id)
+        );
+
+        CREATE TABLE IF NOT EXISTS scenario_asset_views (
+            id INTEGER PRIMARY KEY AUTOINCREMENT,
+            report_id TEXT NOT NULL,
+            ticker TEXT,
+            asset_class TEXT,
+            scenarios TEXT,
+            net_direction TEXT,
+            net_score REAL,
+            dominant_scenario TEXT,
+            scenario_count INTEGER,
+            conflict_flag INTEGER,
             FOREIGN KEY (report_id) REFERENCES weekly_reports(id)
         );
     """
@@ -225,6 +265,58 @@ def save_report(report: WeeklyReport) -> None:
                 pv.actual_return_pct,
                 pv.actual_direction.value,
                 1 if pv.hit else 0,
+            ),
+        )
+
+    # Save active scenarios
+    for sc in report.active_scenarios:
+        conn.execute(
+            """INSERT OR REPLACE INTO active_scenarios
+            (id, report_id, mechanism_id, mechanism_name, category,
+             probability, trigger_signals, trigger_evidence,
+             chain_progress, current_stage, expected_magnitude,
+             asset_impacts, watch_items, confirmation_status,
+             invalidation_risk, horizon, confidence)
+            VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)""",
+            (
+                sc.id,
+                report.id,
+                sc.mechanism_id,
+                sc.mechanism_name,
+                sc.category,
+                sc.probability,
+                json.dumps(sc.trigger_signals),
+                sc.trigger_evidence,
+                json.dumps([cp.model_dump() for cp in sc.chain_progress]),
+                sc.current_stage,
+                sc.expected_magnitude,
+                json.dumps([ai.model_dump() for ai in sc.asset_impacts]),
+                json.dumps(sc.watch_items),
+                sc.confirmation_status,
+                sc.invalidation_risk,
+                sc.horizon,
+                sc.confidence,
+            ),
+        )
+
+    # Save scenario asset views
+    for sv in report.scenario_views:
+        conn.execute(
+            """INSERT INTO scenario_asset_views
+            (report_id, ticker, asset_class, scenarios,
+             net_direction, net_score, dominant_scenario,
+             scenario_count, conflict_flag)
+            VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)""",
+            (
+                report.id,
+                sv.ticker,
+                sv.asset_class.value,
+                json.dumps([s.model_dump() for s in sv.scenarios]),
+                sv.net_direction.value,
+                sv.net_score,
+                sv.dominant_scenario,
+                sv.scenario_count,
+                1 if sv.conflict_flag else 0,
             ),
         )
 
@@ -377,6 +469,86 @@ def _load_report_from_row(conn: sqlite3.Connection, row: sqlite3.Row) -> WeeklyR
         for pv in pv_rows
     ]
 
+    # Load active scenarios
+    active_scenarios = []
+    try:
+        sc_rows = conn.execute(
+            "SELECT * FROM active_scenarios WHERE report_id = ? ORDER BY probability DESC",
+            (report_id,),
+        ).fetchall()
+        for sr in sc_rows:
+            chain_progress = []
+            for cp in json.loads(sr["chain_progress"] or "[]"):
+                if isinstance(cp, dict):
+                    try:
+                        chain_progress.append(ChainStepProgress(**cp))
+                    except (ValueError, KeyError):
+                        continue
+
+            ai_list = []
+            for ai_item in json.loads(sr["asset_impacts"] or "[]"):
+                if isinstance(ai_item, dict):
+                    try:
+                        ai_list.append(ScenarioAssetImpact(**ai_item))
+                    except (ValueError, KeyError):
+                        continue
+
+            active_scenarios.append(
+                ActiveScenario(
+                    id=sr["id"],
+                    mechanism_id=sr["mechanism_id"] or "",
+                    mechanism_name=sr["mechanism_name"] or "",
+                    category=sr["category"] or "",
+                    probability=sr["probability"] or 0.0,
+                    trigger_signals=json.loads(sr["trigger_signals"] or "[]"),
+                    trigger_evidence=sr["trigger_evidence"] or "",
+                    chain_progress=chain_progress,
+                    current_stage=sr["current_stage"] or "early",
+                    expected_magnitude=sr["expected_magnitude"] or "moderate",
+                    asset_impacts=ai_list,
+                    watch_items=json.loads(sr["watch_items"] or "[]"),
+                    confirmation_status=sr["confirmation_status"] or "",
+                    invalidation_risk=sr["invalidation_risk"] or "",
+                    horizon=sr["horizon"] or "1 week",
+                    confidence=sr["confidence"] or 0.0,
+                )
+            )
+    except sqlite3.OperationalError:
+        # Table may not exist in older databases
+        pass
+
+    # Load scenario asset views
+    scenario_views = []
+    try:
+        sv_rows = conn.execute(
+            "SELECT * FROM scenario_asset_views WHERE report_id = ? ORDER BY net_score DESC",
+            (report_id,),
+        ).fetchall()
+        for svr in sv_rows:
+            scenarios_list = []
+            for s in json.loads(svr["scenarios"] or "[]"):
+                if isinstance(s, dict):
+                    try:
+                        scenarios_list.append(AssetScenarioEntry(**s))
+                    except (ValueError, KeyError):
+                        continue
+
+            scenario_views.append(
+                ScenarioAssetView(
+                    ticker=svr["ticker"] or "",
+                    asset_class=AssetClass(svr["asset_class"]),
+                    scenarios=scenarios_list,
+                    net_direction=SentimentDirection(svr["net_direction"]),
+                    net_score=svr["net_score"] or 0.0,
+                    dominant_scenario=svr["dominant_scenario"] or "",
+                    scenario_count=svr["scenario_count"] or 0,
+                    conflict_flag=bool(svr["conflict_flag"]),
+                )
+            )
+    except sqlite3.OperationalError:
+        # Table may not exist in older databases
+        pass
+
     return WeeklyReport(
         id=report_id,
         week_start=datetime.fromisoformat(row["week_start"]),
@@ -389,6 +561,8 @@ def _load_report_from_row(conn: sqlite3.Connection, row: sqlite3.Row) -> WeeklyR
         price_validations=price_validations,
         signal_count=row["signal_count"],
         summary=row["summary"],
+        active_scenarios=active_scenarios,
+        scenario_views=scenario_views,
     )
 
 

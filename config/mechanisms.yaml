@@ -1,0 +1,1388 @@
+# Transmission Mechanism Catalog
+# Each mechanism defines a known macro causal chain linking signals to asset impacts.
+# The LLM's job is to match incoming signals to these mechanisms, not invent new ones.
+
+mechanisms:
+
+  # ============================================================================
+  # MONETARY POLICY (3)
+  # ============================================================================
+
+  - id: fed_dovish_pivot
+    name: Fed Dovish Pivot
+    category: monetary_policy
+    description: >
+      Federal Reserve signals a shift toward easing — rate cuts, QT taper, or
+      dovish forward guidance. Lower real yields weaken USD, support gold and
+      risk assets, steepen the curve.
+    trigger_sources:
+      - central_bank
+      - news
+      - prediction_market
+      - economic_data
+      - spreads
+    trigger_keywords:
+      - rate cut
+      - dovish
+      - pivot
+      - easing
+      - QT taper
+      - pause
+      - patient
+      - data dependent
+      - fed funds futures
+      - CME FedWatch
+    chain_steps:
+      - description: Fed speakers or minutes signal dovish shift
+        observable: Dovish language in FOMC statements, speeches, or minutes
+        lag_days: [0, 1]
+      - description: Rate expectations reprice lower
+        observable: Fed funds futures shift to price more cuts; 2Y yield drops
+        lag_days: [0, 3]
+      - description: Real yields decline, USD weakens
+        observable: TIPS yields fall; DXY drops; gold rises
+        lag_days: [1, 5]
+      - description: Risk assets rally on easier financial conditions
+        observable: Equities up, credit spreads tighten, EM rallies
+        lag_days: [2, 7]
+    asset_impacts:
+      - ticker: DXY
+        asset_class: fx
+        direction: bearish
+        sensitivity: high
+        lag_days: [0, 3]
+      - ticker: Gold
+        asset_class: metals
+        direction: bullish
+        sensitivity: high
+        lag_days: [0, 5]
+      - ticker: S&P 500
+        asset_class: indices
+        direction: bullish
+        sensitivity: medium
+        lag_days: [1, 5]
+      - ticker: Nasdaq
+        asset_class: indices
+        direction: bullish
+        sensitivity: high
+        lag_days: [1, 5]
+      - ticker: Bitcoin
+        asset_class: crypto
+        direction: bullish
+        sensitivity: high
+        lag_days: [1, 7]
+      - ticker: US 10Y Yield
+        asset_class: bonds
+        direction: bearish
+        sensitivity: high
+        lag_days: [0, 3]
+      - ticker: TLT
+        asset_class: bonds
+        direction: bullish
+        sensitivity: high
+        lag_days: [0, 3]
+      - ticker: EUR/USD
+        asset_class: fx
+        direction: bullish
+        sensitivity: medium
+        lag_days: [0, 5]
+    confirmation_criteria:
+      - Fed funds futures price >75% probability of cut within 3 meetings
+      - 2Y yield drops >10bp in a week
+      - DXY breaks below key support
+    invalidation_criteria:
+      - Hot CPI/PPI print forces hawkish repricing
+      - Fed speaker pushes back explicitly on rate cuts
+      - 2Y yield reverses higher
+
+  - id: fed_hawkish_surprise
+    name: Fed Hawkish Surprise
+    category: monetary_policy
+    description: >
+      Fed signals tighter-than-expected policy — fewer cuts, hike risk, or
+      hawkish hold. Higher real yields strengthen USD, pressure gold and risk assets.
+    trigger_sources:
+      - central_bank
+      - news
+      - economic_data
+      - prediction_market
+      - spreads
+    trigger_keywords:
+      - hawkish
+      - higher for longer
+      - inflation persistent
+      - rate hike
+      - restrictive
+      - no rush to cut
+      - hot CPI
+      - sticky inflation
+    chain_steps:
+      - description: Hawkish Fed communication or hot inflation data
+        observable: FOMC dots move higher, hawkish speech, above-consensus CPI
+        lag_days: [0, 1]
+      - description: Short-end rates reprice higher
+        observable: 2Y yield jumps; rate cut expectations fall
+        lag_days: [0, 2]
+      - description: USD strengthens, real yields rise
+        observable: DXY rallies; TIPS yields up; gold falls
+        lag_days: [0, 5]
+      - description: Risk assets sell off on tighter conditions
+        observable: Equities down, credit spreads widen
+        lag_days: [1, 5]
+    asset_impacts:
+      - ticker: DXY
+        asset_class: fx
+        direction: bullish
+        sensitivity: high
+        lag_days: [0, 3]
+      - ticker: Gold
+        asset_class: metals
+        direction: bearish
+        sensitivity: high
+        lag_days: [0, 5]
+      - ticker: S&P 500
+        asset_class: indices
+        direction: bearish
+        sensitivity: medium
+        lag_days: [1, 5]
+      - ticker: Nasdaq
+        asset_class: indices
+        direction: bearish
+        sensitivity: high
+        lag_days: [1, 5]
+      - ticker: Bitcoin
+        asset_class: crypto
+        direction: bearish
+        sensitivity: medium
+        lag_days: [1, 7]
+      - ticker: US 10Y Yield
+        asset_class: bonds
+        direction: bullish
+        sensitivity: high
+        lag_days: [0, 3]
+      - ticker: TLT
+        asset_class: bonds
+        direction: bearish
+        sensitivity: high
+        lag_days: [0, 3]
+      - ticker: EUR/USD
+        asset_class: fx
+        direction: bearish
+        sensitivity: medium
+        lag_days: [0, 5]
+      - ticker: USD/JPY
+        asset_class: fx
+        direction: bullish
+        sensitivity: medium
+        lag_days: [0, 5]
+    confirmation_criteria:
+      - Rate cut expectations drop below 50% for next 2 meetings
+      - 2Y yield rises >10bp
+      - DXY breaks above resistance
+    invalidation_criteria:
+      - Soft CPI or NFP print forces dovish repricing
+      - Fed speaker signals willingness to cut sooner
+      - Financial stress emerges (credit spreads blow out)
+
+  - id: liquidity_expansion
+    name: Global Liquidity Expansion
+    category: monetary_policy
+    description: >
+      Coordinated central bank liquidity injection — Fed balance sheet growth,
+      PBoC easing, ECB LTRO, or BoJ YCC adjustments. Rising liquidity lifts
+      all risk assets, especially crypto and speculative tech.
+    trigger_sources:
+      - central_bank
+      - news
+      - economic_data
+      - spreads
+    trigger_keywords:
+      - liquidity
+      - balance sheet
+      - QE
+      - LTRO
+      - PBoC
+      - RRR cut
+      - reserve injection
+      - TGA drawdown
+      - reverse repo
+      - M2
+    chain_steps:
+      - description: Central bank announces or signals liquidity provision
+        observable: Policy announcements, balance sheet data, reserve operations
+        lag_days: [0, 2]
+      - description: Money market conditions ease
+        observable: Repo rates fall, bank reserves rise, SOFR stable
+        lag_days: [1, 5]
+      - description: Risk assets and speculative assets rally
+        observable: Equities up, crypto up, meme stocks active
+        lag_days: [3, 10]
+    asset_impacts:
+      - ticker: Bitcoin
+        asset_class: crypto
+        direction: bullish
+        sensitivity: high
+        lag_days: [1, 7]
+      - ticker: Ethereum
+        asset_class: crypto
+        direction: bullish
+        sensitivity: high
+        lag_days: [1, 7]
+      - ticker: Nasdaq
+        asset_class: indices
+        direction: bullish
+        sensitivity: high
+        lag_days: [2, 7]
+      - ticker: S&P 500
+        asset_class: indices
+        direction: bullish
+        sensitivity: medium
+        lag_days: [2, 7]
+      - ticker: Gold
+        asset_class: metals
+        direction: bullish
+        sensitivity: medium
+        lag_days: [3, 10]
+      - ticker: DXY
+        asset_class: fx
+        direction: bearish
+        sensitivity: low
+        lag_days: [3, 10]
+    confirmation_criteria:
+      - Fed balance sheet grows for 2+ consecutive weeks
+      - Global M2 growth rate accelerates
+      - Crypto market cap expands >5% in a week
+    invalidation_criteria:
+      - QT acceleration announced
+      - Liquidity drain from Treasury issuance surge
+      - Financial conditions index tightens
+
+  # ============================================================================
+  # RISK SENTIMENT (3)
+  # ============================================================================
+
+  - id: risk_off_flight
+    name: Risk-Off Flight to Safety
+    category: risk_sentiment
+    description: >
+      Broad de-risking event — VIX spikes, credit spreads widen, equities sell
+      off. Capital flows to safe havens: USD, gold, treasuries, JPY.
+    trigger_sources:
+      - spreads
+      - market_data
+      - fear_greed
+      - news
+      - social
+      - google_trends
+    trigger_keywords:
+      - VIX spike
+      - risk off
+      - flight to safety
+      - panic
+      - crash
+      - sell-off
+      - credit stress
+      - margin call
+      - black swan
+      - safe haven
+    chain_steps:
+      - description: Shock event or deteriorating risk metrics
+        observable: VIX >25, credit spreads widen, Fear/Greed index drops
+        lag_days: [0, 1]
+      - description: Equity selling accelerates, correlations spike
+        observable: Broad equity decline, correlation-1 trades, volume surges
+        lag_days: [0, 3]
+      - description: Safe-haven flows intensify
+        observable: Treasury yields drop, USD/JPY falls, gold rallies
+        lag_days: [0, 3]
+      - description: Contagion or stabilization
+        observable: Credit markets stabilize or stress spreads further
+        lag_days: [2, 7]
+    asset_impacts:
+      - ticker: Gold
+        asset_class: metals
+        direction: bullish
+        sensitivity: high
+        lag_days: [0, 3]
+      - ticker: DXY
+        asset_class: fx
+        direction: bullish
+        sensitivity: medium
+        lag_days: [0, 3]
+      - ticker: USD/JPY
+        asset_class: fx
+        direction: bearish
+        sensitivity: high
+        lag_days: [0, 3]
+      - ticker: TLT
+        asset_class: bonds
+        direction: bullish
+        sensitivity: high
+        lag_days: [0, 3]
+      - ticker: US 10Y Yield
+        asset_class: bonds
+        direction: bearish
+        sensitivity: high
+        lag_days: [0, 3]
+      - ticker: S&P 500
+        asset_class: indices
+        direction: bearish
+        sensitivity: high
+        lag_days: [0, 3]
+      - ticker: Nasdaq
+        asset_class: indices
+        direction: bearish
+        sensitivity: high
+        lag_days: [0, 3]
+      - ticker: Bitcoin
+        asset_class: crypto
+        direction: bearish
+        sensitivity: medium
+        lag_days: [0, 5]
+      - ticker: WTI Crude
+        asset_class: energy
+        direction: bearish
+        sensitivity: medium
+        lag_days: [1, 5]
+      - ticker: Copper
+        asset_class: metals
+        direction: bearish
+        sensitivity: high
+        lag_days: [0, 5]
+    confirmation_criteria:
+      - VIX sustained above 25 for >2 days
+      - HY credit spreads widen >25bp
+      - S&P 500 drops >3% from recent high
+    invalidation_criteria:
+      - VIX mean-reverts below 20
+      - Central bank emergency intervention
+      - Positive catalyst resolves shock
+
+  - id: risk_on_rotation
+    name: Risk-On Rotation
+    category: risk_sentiment
+    description: >
+      Improving sentiment drives capital into risk assets — equities rally,
+      credit tightens, VIX declines. Classic "buy the dip" or recovery trade.
+    trigger_sources:
+      - market_data
+      - fear_greed
+      - spreads
+      - news
+      - social
+      - prediction_market
+    trigger_keywords:
+      - risk on
+      - rally
+      - buy the dip
+      - recovery
+      - all-time high
+      - breadth improving
+      - bull market
+      - soft landing
+      - goldilocks
+    chain_steps:
+      - description: Positive catalyst or de-escalation of risks
+        observable: Good data, dovish policy, geopolitical de-escalation
+        lag_days: [0, 2]
+      - description: Risk appetite returns
+        observable: VIX drops, credit tightens, equity breadth improves
+        lag_days: [0, 3]
+      - description: Rotation into cyclicals and growth
+        observable: Small caps outperform, tech rallies, EM flows increase
+        lag_days: [1, 5]
+    asset_impacts:
+      - ticker: S&P 500
+        asset_class: indices
+        direction: bullish
+        sensitivity: high
+        lag_days: [0, 3]
+      - ticker: Nasdaq
+        asset_class: indices
+        direction: bullish
+        sensitivity: high
+        lag_days: [0, 3]
+      - ticker: Russell 2000
+        asset_class: indices
+        direction: bullish
+        sensitivity: high
+        lag_days: [0, 5]
+      - ticker: Bitcoin
+        asset_class: crypto
+        direction: bullish
+        sensitivity: medium
+        lag_days: [1, 5]
+      - ticker: Copper
+        asset_class: metals
+        direction: bullish
+        sensitivity: medium
+        lag_days: [1, 5]
+      - ticker: DXY
+        asset_class: fx
+        direction: bearish
+        sensitivity: low
+        lag_days: [1, 5]
+      - ticker: Gold
+        asset_class: metals
+        direction: bearish
+        sensitivity: low
+        lag_days: [1, 5]
+      - ticker: TLT
+        asset_class: bonds
+        direction: bearish
+        sensitivity: medium
+        lag_days: [1, 5]
+      - ticker: AUD/USD
+        asset_class: fx
+        direction: bullish
+        sensitivity: medium
+        lag_days: [1, 5]
+    confirmation_criteria:
+      - VIX drops below 18 and stays
+      - S&P 500 breadth (% above 50d SMA) rises above 60%
+      - HY credit spreads tighten to below average
+    invalidation_criteria:
+      - New negative shock emerges
+      - VIX reverses above 22
+      - Breadth deteriorates despite index gains
+
+  - id: vix_mean_reversion
+    name: VIX Mean Reversion
+    category: risk_sentiment
+    description: >
+      VIX at extreme levels (>30 or <13) tends to mean-revert. Extreme fear
+      (high VIX) is a contrarian buy signal; extreme complacency (low VIX)
+      signals vulnerability.
+    trigger_sources:
+      - spreads
+      - market_data
+      - fear_greed
+      - google_trends
+    trigger_keywords:
+      - VIX extreme
+      - volatility spike
+      - oversold
+      - overbought
+      - fear extreme
+      - complacency
+      - vol crush
+      - mean reversion
+    chain_steps:
+      - description: VIX reaches extreme level
+        observable: VIX >30 (fear extreme) or VIX <13 (complacency extreme)
+        lag_days: [0, 1]
+      - description: Mean reversion begins
+        observable: VIX starts reverting; equities bounce (if fear) or stall (if complacent)
+        lag_days: [1, 5]
+      - description: Normalization
+        observable: VIX returns to 15-22 range; equity trend resumes
+        lag_days: [3, 10]
+    asset_impacts:
+      - ticker: S&P 500
+        asset_class: indices
+        direction: bullish
+        sensitivity: medium
+        lag_days: [1, 5]
+      - ticker: Nasdaq
+        asset_class: indices
+        direction: bullish
+        sensitivity: medium
+        lag_days: [1, 5]
+    confirmation_criteria:
+      - VIX term structure inverts (backwardation = extreme fear, confirmation of bottom)
+      - Put/call ratio at extreme
+      - Google Trends "market crash" spikes (contrarian bullish)
+    invalidation_criteria:
+      - VIX continues higher on fundamental deterioration
+      - Credit stress becomes systemic
+      - Negative feedback loop (margin calls, forced selling)
+
+  # ============================================================================
+  # GROWTH & INFLATION (3)
+  # ============================================================================
+
+  - id: stagflation_pressure
+    name: Stagflation Pressure
+    category: growth_inflation
+    description: >
+      Growth decelerating while inflation remains sticky or accelerates.
+      Worst environment for equities; gold and commodities outperform.
+    trigger_sources:
+      - economic_data
+      - news
+      - central_bank
+      - spreads
+    trigger_keywords:
+      - stagflation
+      - sticky inflation
+      - slowing growth
+      - GDP miss
+      - PMI contraction
+      - CPI hot
+      - wage-price spiral
+      - cost push
+    chain_steps:
+      - description: Growth indicators weaken while inflation stays elevated
+        observable: PMI <50, GDP misses, CPI remains above target
+        lag_days: [0, 5]
+      - description: Fed caught in policy dilemma
+        observable: Fed rhetoric shifts to acknowledging dual mandate tension
+        lag_days: [3, 10]
+      - description: Market repricing
+        observable: Real yields volatile, curve flattens, equities de-rate
+        lag_days: [5, 14]
+    asset_impacts:
+      - ticker: Gold
+        asset_class: metals
+        direction: bullish
+        sensitivity: high
+        lag_days: [0, 7]
+      - ticker: S&P 500
+        asset_class: indices
+        direction: bearish
+        sensitivity: high
+        lag_days: [1, 7]
+      - ticker: Nasdaq
+        asset_class: indices
+        direction: bearish
+        sensitivity: high
+        lag_days: [1, 7]
+      - ticker: WTI Crude
+        asset_class: energy
+        direction: bullish
+        sensitivity: medium
+        lag_days: [0, 5]
+      - ticker: TLT
+        asset_class: bonds
+        direction: bearish
+        sensitivity: medium
+        lag_days: [1, 7]
+      - ticker: DXY
+        asset_class: fx
+        direction: neutral
+        sensitivity: low
+        lag_days: [3, 10]
+    confirmation_criteria:
+      - ISM Manufacturing <48 with CPI >3.5%
+      - Yield curve flattens or inverts
+      - Breakeven inflation expectations rise
+    invalidation_criteria:
+      - Inflation drops sharply on supply normalization
+      - Growth data rebounds (PMI >52)
+      - Central bank credibly addresses both objectives
+
+  - id: reflation_trade
+    name: Reflation Trade
+    category: growth_inflation
+    description: >
+      Growth re-accelerating with moderate inflation — the "Goldilocks to
+      Reflation" transition. Cyclicals, commodities, and EM outperform;
+      defensive assets underperform.
+    trigger_sources:
+      - economic_data
+      - news
+      - market_data
+      - spreads
+    trigger_keywords:
+      - reflation
+      - growth acceleration
+      - PMI expansion
+      - capex cycle
+      - infrastructure spending
+      - fiscal stimulus
+      - earnings beat
+      - GDP beat
+    chain_steps:
+      - description: Growth data inflects higher
+        observable: PMI rises above 52, GDP beats, employment strong
+        lag_days: [0, 3]
+      - description: Commodity demand increases
+        observable: Copper, oil prices rise; industrial metals demand up
+        lag_days: [2, 7]
+      - description: Cyclical rotation
+        observable: Small caps outperform mega-cap; value beats growth
+        lag_days: [3, 10]
+    asset_impacts:
+      - ticker: Copper
+        asset_class: metals
+        direction: bullish
+        sensitivity: high
+        lag_days: [1, 7]
+      - ticker: WTI Crude
+        asset_class: energy
+        direction: bullish
+        sensitivity: high
+        lag_days: [1, 7]
+      - ticker: Russell 2000
+        asset_class: indices
+        direction: bullish
+        sensitivity: high
+        lag_days: [2, 7]
+      - ticker: S&P 500
+        asset_class: indices
+        direction: bullish
+        sensitivity: medium
+        lag_days: [2, 7]
+      - ticker: AUD/USD
+        asset_class: fx
+        direction: bullish
+        sensitivity: high
+        lag_days: [1, 5]
+      - ticker: TLT
+        asset_class: bonds
+        direction: bearish
+        sensitivity: medium
+        lag_days: [1, 7]
+      - ticker: Gold
+        asset_class: metals
+        direction: neutral
+        sensitivity: low
+        lag_days: [3, 10]
+    confirmation_criteria:
+      - Global PMI >52 for 2+ months
+      - Copper/gold ratio rising
+      - Earnings revision breadth positive
+    invalidation_criteria:
+      - Growth data reverses lower
+      - Central bank tightens aggressively in response
+      - Energy price shock chokes growth
+
+  - id: recession_signal
+    name: Recession Signal
+    category: growth_inflation
+    description: >
+      Leading indicators flash recession — inverted yield curve confirmed
+      by labor market weakening, ISM contraction, rising claims. Defensive
+      positioning dominates.
+    trigger_sources:
+      - economic_data
+      - spreads
+      - news
+      - market_data
+      - fear_greed
+    trigger_keywords:
+      - recession
+      - yield curve inversion
+      - jobless claims rising
+      - ISM contraction
+      - layoffs
+      - consumer confidence drops
+      - credit contraction
+      - hard landing
+    chain_steps:
+      - description: Leading indicators deteriorate
+        observable: Yield curve inverts, LEI declines, ISM <47
+        lag_days: [0, 5]
+      - description: Labor market weakens
+        observable: Initial claims rise >250k, NFP misses, unemployment ticks up
+        lag_days: [5, 30]
+      - description: Corporate earnings decline
+        observable: Earnings miss, guidance cuts, margin compression
+        lag_days: [14, 60]
+      - description: Fed forced to ease
+        observable: Emergency rhetoric, accelerated cuts
+        lag_days: [30, 90]
+    asset_impacts:
+      - ticker: TLT
+        asset_class: bonds
+        direction: bullish
+        sensitivity: high
+        lag_days: [0, 7]
+      - ticker: US 10Y Yield
+        asset_class: bonds
+        direction: bearish
+        sensitivity: high
+        lag_days: [0, 7]
+      - ticker: Gold
+        asset_class: metals
+        direction: bullish
+        sensitivity: high
+        lag_days: [0, 10]
+      - ticker: S&P 500
+        asset_class: indices
+        direction: bearish
+        sensitivity: high
+        lag_days: [5, 30]
+      - ticker: DXY
+        asset_class: fx
+        direction: bullish
+        sensitivity: medium
+        lag_days: [0, 10]
+      - ticker: Copper
+        asset_class: metals
+        direction: bearish
+        sensitivity: high
+        lag_days: [3, 14]
+      - ticker: WTI Crude
+        asset_class: energy
+        direction: bearish
+        sensitivity: high
+        lag_days: [5, 14]
+      - ticker: Bitcoin
+        asset_class: crypto
+        direction: bearish
+        sensitivity: medium
+        lag_days: [3, 14]
+    confirmation_criteria:
+      - 3-month/10-year curve inverted for >3 months
+      - Initial claims sustained above 250k
+      - ISM Manufacturing <47 for 2+ months
+    invalidation_criteria:
+      - Curve un-inverts with growth holding
+      - Labor market stays resilient (claims <220k)
+      - Fiscal stimulus offsets monetary drag
+
+  # ============================================================================
+  # GEOPOLITICAL (2)
+  # ============================================================================
+
+  - id: trade_war_escalation
+    name: Trade War Escalation
+    category: geopolitical
+    description: >
+      Tariff hikes, trade barriers, or sanctions escalate between major
+      economies. Disrupts supply chains, raises costs, creates uncertainty
+      that weighs on risk assets.
+    trigger_sources:
+      - news
+      - social
+      - prediction_market
+      - google_trends
+    trigger_keywords:
+      - tariff
+      - trade war
+      - sanctions
+      - retaliation
+      - import duties
+      - export ban
+      - decoupling
+      - nearshoring
+      - trade deficit
+    chain_steps:
+      - description: New tariffs or sanctions announced
+        observable: Policy announcement, executive order, retaliatory measures
+        lag_days: [0, 1]
+      - description: Market reprices affected sectors and currencies
+        observable: Targeted sector stocks fall, affected FX moves, vol spikes
+        lag_days: [0, 3]
+      - description: Supply chain disruption fears
+        observable: Shipping costs rise, PMI new orders fall, input prices up
+        lag_days: [3, 14]
+    asset_impacts:
+      - ticker: S&P 500
+        asset_class: indices
+        direction: bearish
+        sensitivity: medium
+        lag_days: [0, 5]
+      - ticker: USD/CNH
+        asset_class: fx
+        direction: bullish
+        sensitivity: high
+        lag_days: [0, 3]
+      - ticker: Gold
+        asset_class: metals
+        direction: bullish
+        sensitivity: medium
+        lag_days: [0, 5]
+      - ticker: Hang Seng
+        asset_class: indices
+        direction: bearish
+        sensitivity: high
+        lag_days: [0, 3]
+      - ticker: AUD/USD
+        asset_class: fx
+        direction: bearish
+        sensitivity: medium
+        lag_days: [0, 5]
+      - ticker: Copper
+        asset_class: metals
+        direction: bearish
+        sensitivity: medium
+        lag_days: [1, 7]
+      - ticker: DXY
+        asset_class: fx
+        direction: bullish
+        sensitivity: low
+        lag_days: [1, 5]
+    confirmation_criteria:
+      - Multiple rounds of retaliatory tariffs
+      - Manufacturing PMI new orders component declines
+      - Trade volumes measurably decline
+    invalidation_criteria:
+      - Trade deal announced or negotiations resume
+      - Tariffs rolled back or delayed
+      - Markets price in worst case and rally on de-escalation
+
+  - id: geopolitical_shock
+    name: Geopolitical Shock
+    category: geopolitical
+    description: >
+      Sudden geopolitical event — military conflict, political crisis,
+      sanctions — that disrupts markets. Classic risk-off with energy and
+      gold premium depending on geography.
+    trigger_sources:
+      - news
+      - social
+      - prediction_market
+      - google_trends
+      - market_data
+    trigger_keywords:
+      - war
+      - military
+      - conflict
+      - invasion
+      - missile
+      - sanctions
+      - crisis
+      - coup
+      - nuclear
+      - escalation
+    chain_steps:
+      - description: Geopolitical event occurs or escalates
+        observable: News headlines, military action, political crisis
+        lag_days: [0, 1]
+      - description: Risk-off reaction
+        observable: VIX spikes, equities sell off, safe havens bid
+        lag_days: [0, 2]
+      - description: Energy/commodity premium if supply affected
+        observable: Oil spikes if Middle East/Russia; grain spikes if Black Sea
+        lag_days: [0, 5]
+      - description: Normalization or escalation
+        observable: Markets either recover on de-escalation or stress deepens
+        lag_days: [3, 14]
+    asset_impacts:
+      - ticker: Gold
+        asset_class: metals
+        direction: bullish
+        sensitivity: high
+        lag_days: [0, 3]
+      - ticker: WTI Crude
+        asset_class: energy
+        direction: bullish
+        sensitivity: high
+        lag_days: [0, 3]
+      - ticker: Brent Crude
+        asset_class: energy
+        direction: bullish
+        sensitivity: high
+        lag_days: [0, 3]
+      - ticker: DXY
+        asset_class: fx
+        direction: bullish
+        sensitivity: medium
+        lag_days: [0, 3]
+      - ticker: USD/JPY
+        asset_class: fx
+        direction: bearish
+        sensitivity: medium
+        lag_days: [0, 3]
+      - ticker: S&P 500
+        asset_class: indices
+        direction: bearish
+        sensitivity: medium
+        lag_days: [0, 3]
+      - ticker: TLT
+        asset_class: bonds
+        direction: bullish
+        sensitivity: medium
+        lag_days: [0, 3]
+    confirmation_criteria:
+      - Conflict continues or escalates
+      - Energy supply genuinely disrupted
+      - VIX sustained >25
+    invalidation_criteria:
+      - Ceasefire or de-escalation
+      - Markets digest news and recover
+      - No actual supply disruption materializes
+
+  # ============================================================================
+  # FX-SPECIFIC (2)
+  # ============================================================================
+
+  - id: yen_carry_unwind
+    name: Yen Carry Trade Unwind
+    category: fx_specific
+    description: >
+      Reversal of the JPY carry trade — positions funded in cheap yen unwind
+      as BoJ tightens or risk aversion rises. JPY strengthens sharply,
+      pressuring global risk assets through forced deleveraging.
+    trigger_sources:
+      - market_data
+      - central_bank
+      - news
+      - spreads
+    trigger_keywords:
+      - yen carry
+      - BoJ
+      - YCC
+      - JPY strengthening
+      - carry unwind
+      - deleveraging
+      - USDJPY
+      - Ueda
+      - Japan rate hike
+    chain_steps:
+      - description: BoJ signals tightening or JPY strengthens sharply
+        observable: BoJ rate hike, YCC tweak, USD/JPY drops >2% in a week
+        lag_days: [0, 2]
+      - description: Carry trade positions begin unwinding
+        observable: JPY crosses fall, vol spikes in JPY pairs
+        lag_days: [0, 3]
+      - description: Cross-asset deleveraging
+        observable: Correlated selling across equity and credit markets
+        lag_days: [1, 5]
+    asset_impacts:
+      - ticker: USD/JPY
+        asset_class: fx
+        direction: bearish
+        sensitivity: high
+        lag_days: [0, 3]
+      - ticker: Nikkei
+        asset_class: indices
+        direction: bearish
+        sensitivity: high
+        lag_days: [0, 3]
+      - ticker: S&P 500
+        asset_class: indices
+        direction: bearish
+        sensitivity: medium
+        lag_days: [1, 5]
+      - ticker: Nasdaq
+        asset_class: indices
+        direction: bearish
+        sensitivity: medium
+        lag_days: [1, 5]
+      - ticker: AUD/USD
+        asset_class: fx
+        direction: bearish
+        sensitivity: medium
+        lag_days: [0, 5]
+      - ticker: EUR/USD
+        asset_class: fx
+        direction: bearish
+        sensitivity: low
+        lag_days: [1, 5]
+    confirmation_criteria:
+      - USD/JPY drops >3% in a week
+      - CFTC JPY positioning flips net long
+      - Cross-asset correlation spikes
+    invalidation_criteria:
+      - BoJ stays dovish, JPY weakens back
+      - Carry trade re-established at new levels
+      - Global risk appetite absorbs the move
+
+  - id: dollar_wrecking_ball
+    name: Dollar Wrecking Ball
+    category: fx_specific
+    description: >
+      Broad USD strength driven by yield differentials, risk aversion, or
+      growth divergence. Strong dollar acts as a "wrecking ball" on EM,
+      commodities, and global risk assets.
+    trigger_sources:
+      - market_data
+      - economic_data
+      - central_bank
+      - spreads
+    trigger_keywords:
+      - strong dollar
+      - DXY rally
+      - dollar wrecking ball
+      - yield differential
+      - US exceptionalism
+      - USD strength
+      - capital flows
+    chain_steps:
+      - description: US yields rise relative to peers or US growth outperforms
+        observable: DXY breaks above resistance, 2Y spread widens vs peers
+        lag_days: [0, 3]
+      - description: Commodity prices fall (priced in USD)
+        observable: Gold, oil, copper prices decline
+        lag_days: [1, 5]
+      - description: EM stress builds
+        observable: EM FX weakens, EM credit spreads widen
+        lag_days: [2, 10]
+    asset_impacts:
+      - ticker: DXY
+        asset_class: fx
+        direction: bullish
+        sensitivity: high
+        lag_days: [0, 3]
+      - ticker: EUR/USD
+        asset_class: fx
+        direction: bearish
+        sensitivity: high
+        lag_days: [0, 3]
+      - ticker: GBP/USD
+        asset_class: fx
+        direction: bearish
+        sensitivity: medium
+        lag_days: [0, 5]
+      - ticker: AUD/USD
+        asset_class: fx
+        direction: bearish
+        sensitivity: high
+        lag_days: [0, 5]
+      - ticker: Gold
+        asset_class: metals
+        direction: bearish
+        sensitivity: high
+        lag_days: [0, 5]
+      - ticker: WTI Crude
+        asset_class: energy
+        direction: bearish
+        sensitivity: medium
+        lag_days: [1, 5]
+      - ticker: Copper
+        asset_class: metals
+        direction: bearish
+        sensitivity: medium
+        lag_days: [1, 5]
+      - ticker: Hang Seng
+        asset_class: indices
+        direction: bearish
+        sensitivity: medium
+        lag_days: [2, 7]
+      - ticker: Bitcoin
+        asset_class: crypto
+        direction: bearish
+        sensitivity: medium
+        lag_days: [1, 7]
+    confirmation_criteria:
+      - DXY sustains above 105 and rising
+      - US-German 2Y yield spread widens
+      - EM FX index falls >2%
+    invalidation_criteria:
+      - Fed signals easing, closing yield gap
+      - US data weakens, growth convergence
+      - Coordinated intervention or EM policy response
+
+  # ============================================================================
+  # COMMODITY (2)
+  # ============================================================================
+
+  - id: energy_supply_shock
+    name: Energy Supply Shock
+    category: commodity
+    description: >
+      Disruption to energy supply — OPEC cuts, geopolitical disruption,
+      pipeline/refinery outage. Drives oil prices higher, feeds into
+      inflation expectations and transportation costs.
+    trigger_sources:
+      - news
+      - market_data
+      - prediction_market
+    trigger_keywords:
+      - OPEC
+      - supply cut
+      - production cut
+      - oil supply
+      - pipeline
+      - refinery
+      - strait of Hormuz
+      - energy crisis
+      - output cut
+      - SPR
+    chain_steps:
+      - description: Supply disruption event or OPEC decision
+        observable: OPEC cut, geopolitical disruption, outage report
+        lag_days: [0, 1]
+      - description: Oil prices spike
+        observable: WTI/Brent jump >3%, backwardation steepens
+        lag_days: [0, 3]
+      - description: Inflation expectations rise
+        observable: Breakevens up, gasoline futures rise, transport costs increase
+        lag_days: [2, 7]
+      - description: Growth impact if sustained
+        observable: Consumer confidence drops, discretionary spending falls
+        lag_days: [7, 30]
+    asset_impacts:
+      - ticker: WTI Crude
+        asset_class: energy
+        direction: bullish
+        sensitivity: high
+        lag_days: [0, 3]
+      - ticker: Brent Crude
+        asset_class: energy
+        direction: bullish
+        sensitivity: high
+        lag_days: [0, 3]
+      - ticker: Natural Gas
+        asset_class: energy
+        direction: bullish
+        sensitivity: medium
+        lag_days: [1, 5]
+      - ticker: S&P 500
+        asset_class: indices
+        direction: bearish
+        sensitivity: low
+        lag_days: [3, 10]
+      - ticker: Gold
+        asset_class: metals
+        direction: bullish
+        sensitivity: low
+        lag_days: [2, 7]
+      - ticker: USD/CAD
+        asset_class: fx
+        direction: bearish
+        sensitivity: medium
+        lag_days: [0, 5]
+    confirmation_criteria:
+      - Supply loss exceeds 500k bbl/day
+      - Oil backwardation steepens
+      - Inventory draws accelerate
+    invalidation_criteria:
+      - SPR release announced
+      - OPEC reverses cuts
+      - Demand destruction offsets supply loss
+
+  - id: gold_central_bank_accumulation
+    name: Gold Central Bank Accumulation
+    category: commodity
+    description: >
+      Central banks (especially EM) accelerate gold purchases as part of
+      de-dollarization, reserve diversification, or geopolitical hedging.
+      Structural bid supports gold prices independent of real yields.
+    trigger_sources:
+      - central_bank
+      - news
+      - market_data
+      - economic_data
+    trigger_keywords:
+      - central bank gold
+      - gold reserves
+      - de-dollarization
+      - PBoC gold
+      - reserve diversification
+      - BRICS
+      - gold accumulation
+      - official sector
+    chain_steps:
+      - description: Central bank gold purchase data released
+        observable: IMF data, PBoC/RBI/central bank announcements
+        lag_days: [0, 5]
+      - description: Market recognizes structural demand shift
+        observable: Gold price resilient despite rising real yields
+        lag_days: [3, 14]
+      - description: Price floor established at higher level
+        observable: Gold dips bought aggressively, support levels rise
+        lag_days: [7, 30]
+    asset_impacts:
+      - ticker: Gold
+        asset_class: metals
+        direction: bullish
+        sensitivity: high
+        lag_days: [0, 14]
+      - ticker: Silver
+        asset_class: metals
+        direction: bullish
+        sensitivity: medium
+        lag_days: [3, 14]
+      - ticker: DXY
+        asset_class: fx
+        direction: bearish
+        sensitivity: low
+        lag_days: [7, 30]
+    confirmation_criteria:
+      - Multiple central banks report increased gold holdings
+      - Gold holds gains despite real yield headwinds
+      - Physical gold premium over futures widens
+    invalidation_criteria:
+      - Central banks pause or reduce purchases
+      - USD strengthens forcing EM to sell reserves
+      - Gold breaks below structural support
+
+  # ============================================================================
+  # CRYPTO (2)
+  # ============================================================================
+
+  - id: crypto_liquidity_proxy
+    name: Crypto as Liquidity Proxy
+    category: crypto
+    description: >
+      Crypto acts as a high-beta liquidity proxy — when global liquidity
+      expands (M2 growth, Fed easing, TGA drawdowns), crypto outperforms.
+      This mechanism activates when liquidity signals are dominant.
+    trigger_sources:
+      - market_data
+      - central_bank
+      - spreads
+      - social
+      - economic_data
+    trigger_keywords:
+      - Bitcoin liquidity
+      - crypto liquidity
+      - M2 growth
+      - stablecoin flows
+      - exchange inflows
+      - institutional adoption
+      - ETF flows
+      - halving
+    chain_steps:
+      - description: Liquidity conditions improve
+        observable: M2 growth accelerates, Fed easing, stablecoin mint increases
+        lag_days: [0, 5]
+      - description: Crypto market absorbs flows
+        observable: BTC/ETH rally, stablecoin market cap grows, exchange volumes rise
+        lag_days: [3, 10]
+      - description: Altcoin rotation
+        observable: SOL, ETH outperform BTC; total crypto market cap expands
+        lag_days: [5, 14]
+    asset_impacts:
+      - ticker: Bitcoin
+        asset_class: crypto
+        direction: bullish
+        sensitivity: high
+        lag_days: [1, 7]
+      - ticker: Ethereum
+        asset_class: crypto
+        direction: bullish
+        sensitivity: high
+        lag_days: [2, 10]
+      - ticker: Solana
+        asset_class: crypto
+        direction: bullish
+        sensitivity: high
+        lag_days: [3, 10]
+    confirmation_criteria:
+      - BTC ETF flows positive for 5+ consecutive days
+      - Stablecoin market cap growing
+      - BTC dominance falling (altcoin rotation starting)
+    invalidation_criteria:
+      - Liquidity conditions tighten (QT, TGA rebuild)
+      - Regulatory crackdown
+      - Exchange hack or major protocol failure
+
+  - id: crypto_regulatory_shock
+    name: Crypto Regulatory Shock
+    category: crypto
+    description: >
+      Major regulatory action against crypto — SEC enforcement, exchange
+      shutdown, stablecoin ban, or new restrictive legislation. Sharp
+      sell-off followed by potential recovery if existential risk passes.
+    trigger_sources:
+      - news
+      - social
+      - prediction_market
+      - google_trends
+    trigger_keywords:
+      - SEC
+      - regulation
+      - ban
+      - enforcement
+      - lawsuit
+      - exchange shutdown
+      - stablecoin regulation
+      - CBDC
+      - crypto ban
+      - Gensler
+    chain_steps:
+      - description: Regulatory action announced
+        observable: SEC suit, legislative proposal, exchange enforcement
+        lag_days: [0, 1]
+      - description: Crypto market sells off
+        observable: BTC/ETH drop >5%, exchange outflows spike
+        lag_days: [0, 3]
+      - description: Assessment of systemic impact
+        observable: Market evaluates if existential or manageable
+        lag_days: [2, 7]
+    asset_impacts:
+      - ticker: Bitcoin
+        asset_class: crypto
+        direction: bearish
+        sensitivity: high
+        lag_days: [0, 3]
+      - ticker: Ethereum
+        asset_class: crypto
+        direction: bearish
+        sensitivity: high
+        lag_days: [0, 3]
+      - ticker: Solana
+        asset_class: crypto
+        direction: bearish
+        sensitivity: high
+        lag_days: [0, 3]
+    confirmation_criteria:
+      - Multiple regulatory actions in quick succession
+      - Exchange volumes decline sustainably
+      - Institutional players pull back
+    invalidation_criteria:
+      - Regulatory clarity improves (pro-crypto legislation)
+      - Market recovers within days (buy-the-dip mentality)
+      - Enforcement targets narrow scope, not systemic
+
+  # ============================================================================
+  # BONDS (1)
+  # ============================================================================
+
+  - id: term_premium_repricing
+    name: Term Premium Repricing
+    category: bonds
+    description: >
+      Bond market reprices term premium — the compensation investors demand
+      for holding longer-duration debt. Driven by fiscal concerns, supply
+      glut, or inflation regime shift. Steepens the curve from the long end.
+    trigger_sources:
+      - spreads
+      - market_data
+      - news
+      - economic_data
+    trigger_keywords:
+      - term premium
+      - bond supply
+      - Treasury auction
+      - fiscal deficit
+      - debt ceiling
+      - funding needs
+      - duration risk
+      - bear steepener
+      - long end
+      - 10Y/30Y
+    chain_steps:
+      - description: Catalyst for term premium shift
+        observable: Large Treasury auction, fiscal policy expansion, rating downgrade
+        lag_days: [0, 2]
+      - description: Long-end yields rise disproportionately
+        observable: 10Y/30Y yields up more than 2Y; bear steepener
+        lag_days: [0, 5]
+      - description: Equity and credit markets react
+        observable: Growth stocks de-rate on higher discount rate; mortgages up
+        lag_days: [2, 7]
+    asset_impacts:
+      - ticker: TLT
+        asset_class: bonds
+        direction: bearish
+        sensitivity: high
+        lag_days: [0, 3]
+      - ticker: US 10Y Yield
+        asset_class: bonds
+        direction: bullish
+        sensitivity: high
+        lag_days: [0, 3]
+      - ticker: US 30Y Yield
+        asset_class: bonds
+        direction: bullish
+        sensitivity: high
+        lag_days: [0, 3]
+      - ticker: Nasdaq
+        asset_class: indices
+        direction: bearish
+        sensitivity: high
+        lag_days: [1, 5]
+      - ticker: S&P 500
+        asset_class: indices
+        direction: bearish
+        sensitivity: medium
+        lag_days: [1, 5]
+      - ticker: Gold
+        asset_class: metals
+        direction: bullish
+        sensitivity: low
+        lag_days: [3, 10]
+    confirmation_criteria:
+      - 10Y-2Y spread widens >20bp in a month
+      - Treasury auction tails consistently
+      - Term premium estimates (ACM model) rise
+    invalidation_criteria:
+      - Fed signals yield curve control or rate cuts
+      - Fiscal austerity reduces issuance
+      - Foreign demand for Treasuries increases

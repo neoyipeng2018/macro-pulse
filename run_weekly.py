@@ -86,7 +86,7 @@ def run_pipeline(collect_only: bool = False, sources: list[str] | None = None):
     before = len(signals)
     signals = [
         s for s in signals
-        if s.timestamp >= cutoff
+        if s.timestamp.replace(tzinfo=None) >= cutoff
         or s.metadata.get("is_forward_looking")
     ]
     dropped = before - len(signals)
@@ -124,6 +124,24 @@ def run_pipeline(collect_only: bool = False, sources: list[str] | None = None):
     if not narratives:
         logger.warning("No narratives extracted. Check LLM configuration.")
         return
+
+    # Step 2b: Match signals to transmission mechanisms
+    logger.info("=== Step 2b: Matching transmission mechanisms ===")
+    from config.mechanisms import load_mechanisms
+    from ai.chains.mechanism_matcher import match_mechanisms
+    from analysis.scenario_aggregator import aggregate_scenarios
+
+    mechanisms = load_mechanisms()
+    if mechanisms:
+        active_scenarios = match_mechanisms(signals, mechanisms, llm)
+        scenario_views = aggregate_scenarios(active_scenarios)
+        logger.info(
+            "Matched %d active scenarios, %d asset views",
+            len(active_scenarios), len(scenario_views),
+        )
+    else:
+        active_scenarios, scenario_views = [], []
+        logger.info("No mechanisms loaded — skipping scenario matching")
 
     # Step 3: Classify economic regime
     logger.info("=== Step 3: Classifying economic regime ===")
@@ -177,6 +195,8 @@ def run_pipeline(collect_only: bool = False, sources: list[str] | None = None):
         price_validations=price_validations,
         signal_count=len(signals),
         summary=summary,
+        active_scenarios=active_scenarios,
+        scenario_views=scenario_views,
     )
 
     save_report(report)
@@ -202,6 +222,11 @@ def run_pipeline(collect_only: bool = False, sources: list[str] | None = None):
     for s in asset_scores[:10]:
         arrow = "^" if s.score > 0 else "v" if s.score < 0 else "-"
         print(f"  {arrow} {s.ticker:20s} {s.score:+.2f}  ({s.direction.value}, {s.conviction:.1f} conviction)")
+
+    if active_scenarios:
+        print(f"\nActive Scenarios ({len(active_scenarios)}):")
+        for sc in sorted(active_scenarios, key=lambda x: x.probability, reverse=True):
+            print(f"  [{sc.probability:.0%}] {sc.mechanism_name} ({sc.category}) — {sc.current_stage}")
     print("=" * 60)
 
 

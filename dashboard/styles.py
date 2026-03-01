@@ -708,6 +708,140 @@ details[data-testid="stExpander"] {
     color: #FF9100;
     border: 1px solid rgba(255, 145, 0, 0.3);
 }
+
+/* === SCENARIO BLOCKS === */
+.scenario-block {
+    background: rgba(13, 17, 23, 0.6);
+    border: 1px solid #1a2332;
+    border-radius: 4px;
+    padding: 10px 14px;
+    margin-top: 6px;
+    margin-bottom: 2px;
+}
+.scenario-block:last-child { margin-bottom: 0; }
+
+.scenario-header {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    flex-wrap: wrap;
+    margin-bottom: 4px;
+}
+
+.scenario-probability {
+    display: inline-block;
+    padding: 2px 8px;
+    border-radius: 3px;
+    font-size: 0.7rem;
+    font-weight: 700;
+    letter-spacing: 0.06em;
+    background: rgba(0, 212, 170, 0.15);
+    color: #00d4aa;
+    border: 1px solid rgba(0, 212, 170, 0.3);
+    min-width: 36px;
+    text-align: center;
+}
+
+.scenario-name {
+    font-size: 0.78rem;
+    font-weight: 600;
+    color: #e0e4ec;
+    letter-spacing: 0.03em;
+}
+
+.scenario-category-chip {
+    display: inline-block;
+    padding: 1px 6px;
+    border-radius: 3px;
+    font-size: 0.55rem;
+    font-weight: 600;
+    letter-spacing: 0.06em;
+    text-transform: uppercase;
+    background: rgba(138, 180, 248, 0.08);
+    color: #8ab4f8;
+    border: 1px solid rgba(138, 180, 248, 0.2);
+}
+
+/* === STAGE CHIPS === */
+.stage-chip {
+    display: inline-block;
+    padding: 1px 6px;
+    border-radius: 3px;
+    font-size: 0.55rem;
+    font-weight: 700;
+    letter-spacing: 0.06em;
+    text-transform: uppercase;
+}
+.stage-early {
+    background: rgba(255, 234, 0, 0.12);
+    color: #FFEA00;
+    border: 1px solid rgba(255, 234, 0, 0.25);
+}
+.stage-mid {
+    background: rgba(255, 145, 0, 0.12);
+    color: #FF9100;
+    border: 1px solid rgba(255, 145, 0, 0.25);
+}
+.stage-late {
+    background: rgba(0, 230, 118, 0.12);
+    color: #00E676;
+    border: 1px solid rgba(0, 230, 118, 0.25);
+}
+.stage-complete {
+    background: rgba(0, 212, 170, 0.15);
+    color: #00d4aa;
+    border: 1px solid rgba(0, 212, 170, 0.3);
+}
+
+/* === SCENARIO WATCH ITEMS === */
+.scenario-watch {
+    font-size: 0.65rem;
+    color: #4a5568;
+    margin-top: 4px;
+    letter-spacing: 0.03em;
+}
+.scenario-watch-label {
+    font-weight: 700;
+    color: #FF9100;
+    text-transform: uppercase;
+    letter-spacing: 0.06em;
+    font-size: 0.6rem;
+}
+
+/* === SCENARIO RATIONALE === */
+.scenario-rationale {
+    color: #8892a4;
+    font-size: 0.72rem;
+    line-height: 1.5;
+    margin-top: 2px;
+}
+
+/* === CONFLICT BADGE === */
+.conflict-badge {
+    display: inline-block;
+    padding: 2px 8px;
+    border-radius: 3px;
+    font-size: 0.55rem;
+    font-weight: 700;
+    letter-spacing: 0.06em;
+    text-transform: uppercase;
+    background: rgba(255, 145, 0, 0.2);
+    color: #FF9100;
+    border: 1px solid rgba(255, 145, 0, 0.35);
+}
+
+/* === SCENARIO COUNT CHIP === */
+.scenario-count-chip {
+    display: inline-block;
+    padding: 2px 8px;
+    border-radius: 3px;
+    font-size: 0.6rem;
+    font-weight: 600;
+    letter-spacing: 0.05em;
+    background: rgba(74, 85, 104, 0.3);
+    color: #8892a4;
+    border: 1px solid rgba(74, 85, 104, 0.4);
+}
 </style>
 """
 

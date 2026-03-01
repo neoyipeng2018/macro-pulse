@@ -155,6 +155,83 @@ Return ONLY the JSON object, no other text.""",
 )
 
 
+MECHANISM_MATCHING_PROMPT = ChatPromptTemplate.from_messages(
+    [
+        (
+            "system",
+            """You are a macro strategist matching incoming market signals to known
+transmission mechanisms — causal chains through which macro events propagate to
+asset prices.
+
+You are given:
+1. A set of raw signals (news, data, social media, spreads, etc.)
+2. A catalog of known transmission mechanisms, each with trigger conditions,
+   causal chain steps, and expected asset impacts.
+
+Your job is to identify which mechanisms are CURRENTLY ACTIVATED by the signals.
+You are NOT inventing narratives — you are matching evidence to known mechanisms.
+
+Rules:
+- Only activate a mechanism if specific signals provide concrete evidence for its
+  trigger conditions. Do not speculate or assume.
+- Assign a probability (0.2–0.95) reflecting how strongly the signals support
+  activation. Probability >= 0.2 required to include.
+- Typically 2–6 mechanisms will be active. It is fine to activate fewer if
+  evidence is weak, or more if the signal set is rich.
+- For each active mechanism, assess:
+  - Which chain steps have evidence (not_started/emerging/confirmed/invalidated)
+  - Current stage (early/mid/late/complete)
+  - Expected magnitude (minor/moderate/major)
+  - Per-asset impacts with direction, magnitude (0-1), and conviction (0-1)
+  - Watch items: what data releases or events would confirm or invalidate
+- Do NOT activate mechanisms that are not in the catalog. If signals suggest
+  something novel, skip it — the narrative pipeline handles unstructured themes.
+- TEMPORAL GROUNDING: Today is {run_date}. Only cite evidence from the provided
+  signals. Do not hallucinate data or dates from your training data.""",
+        ),
+        (
+            "human",
+            """Today's date: {run_date}
+
+=== SIGNALS ===
+{signals}
+
+=== MECHANISM CATALOG ===
+{mechanisms}
+
+Match the signals to activated mechanisms. Return a JSON array:
+[{{
+    "mechanism_id": "fed_dovish_pivot",
+    "mechanism_name": "Fed Dovish Pivot",
+    "category": "monetary_policy",
+    "probability": 0.65,
+    "trigger_signals": ["signal_id_1", "signal_id_2"],
+    "trigger_evidence": "FOMC minutes showed dovish lean; CME FedWatch pricing 80% June cut",
+    "chain_progress": [
+        {{"step_index": 0, "description": "Fed signals dovish shift", "status": "confirmed", "evidence": "Minutes showed multiple members favoring cuts", "confidence": 0.8}},
+        {{"step_index": 1, "description": "Rate expectations reprice", "status": "emerging", "evidence": "2Y yield down 5bp this week", "confidence": 0.6}},
+        {{"step_index": 2, "description": "Real yields decline", "status": "not_started", "evidence": "", "confidence": 0.0}},
+        {{"step_index": 3, "description": "Risk assets rally", "status": "not_started", "evidence": "", "confidence": 0.0}}
+    ],
+    "current_stage": "early",
+    "expected_magnitude": "moderate",
+    "asset_impacts": [
+        {{"ticker": "Gold", "asset_class": "metals", "direction": "bullish", "magnitude": 0.6, "conviction": 0.7, "rationale": "Lower real yields support gold"}},
+        {{"ticker": "DXY", "asset_class": "fx", "direction": "bearish", "magnitude": 0.5, "conviction": 0.65, "rationale": "Rate cut expectations weigh on USD"}}
+    ],
+    "watch_items": ["CPI print Friday", "FOMC meeting next week", "2Y yield trajectory"],
+    "confirmation_status": "Partially confirmed — dovish shift clear but rate repricing incomplete",
+    "invalidation_risk": "Hot CPI Friday could reverse dovish narrative",
+    "horizon": "1 week",
+    "confidence": 0.65
+}}]
+
+Return ONLY the JSON array, no other text.""",
+        ),
+    ]
+)
+
+
 WEEKLY_SUMMARY_PROMPT = ChatPromptTemplate.from_messages(
     [
         (

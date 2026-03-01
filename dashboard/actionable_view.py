@@ -10,8 +10,10 @@ import streamlit as st
 from analysis.technicals import TechnicalSnapshot, compute_technicals
 from models.schemas import (
     AssetClass,
+    AssetScenarioEntry,
     EdgeType,
     Narrative,
+    ScenarioAssetView,
     SentimentDirection,
     SignalSource,
     WeeklyAssetScore,
@@ -526,25 +528,225 @@ def _render_asset_card(intel: AssetIntel, tech_snapshot: TechnicalSnapshot | Non
     st.markdown(card_html, unsafe_allow_html=True)
 
 
-def render_actionable_view(
-    report: WeeklyReport | None,
+# ---------------------------------------------------------------------------
+# Scenario-based rendering
+# ---------------------------------------------------------------------------
+
+@dataclass
+class ScenarioAssetIntel:
+    """Enriched per-asset data for scenario-based rendering."""
+
+    ticker: str
+    asset_class: AssetClass
+    net_direction: SentimentDirection
+    net_score: float
+    scenarios: list[AssetScenarioEntry] = field(default_factory=list)
+    conflict_flag: bool = False
+    scenario_count: int = 0
+    dominant_scenario: str = ""
+
+
+def build_scenario_intel(report: WeeklyReport) -> list[ScenarioAssetIntel]:
+    """Build ScenarioAssetIntel list from report's scenario_views."""
+    results: list[ScenarioAssetIntel] = []
+    for sv in report.scenario_views:
+        results.append(
+            ScenarioAssetIntel(
+                ticker=sv.ticker,
+                asset_class=sv.asset_class,
+                net_direction=sv.net_direction,
+                net_score=sv.net_score,
+                scenarios=sv.scenarios,
+                conflict_flag=sv.conflict_flag,
+                scenario_count=sv.scenario_count,
+                dominant_scenario=sv.dominant_scenario,
+            )
+        )
+    return results
+
+
+def _render_scenario_card(
+    intel: ScenarioAssetIntel,
+    tech_snapshot: TechnicalSnapshot | None = None,
+) -> None:
+    """Render a single scenario-based asset card."""
+    dir_val = intel.net_direction.value
+    score_sign = "+" if intel.net_score > 0 else ""
+    score_class = f"score-{dir_val}"
+    ac_label = ASSET_LABELS.get(intel.asset_class, intel.asset_class.value)
+
+    conflict_html = ""
+    if intel.conflict_flag:
+        conflict_html = ' <span class="conflict-badge">CONFLICTING</span>'
+
+    scenario_count_html = (
+        f'<span class="scenario-count-chip">'
+        f'{intel.scenario_count} scenario{"s" if intel.scenario_count != 1 else ""}'
+        f"</span>"
+    )
+
+    # Build scenario sub-blocks
+    scenario_blocks = ""
+    for entry in intel.scenarios:
+        stage_class = f"stage-{entry.chain_stage}" if entry.chain_stage in ("early", "mid", "late", "complete") else "stage-early"
+        category_display = entry.category.replace("_", " ")
+
+        watch_html = ""
+        if entry.watch_items:
+            watch_list = ", ".join(entry.watch_items[:4])
+            watch_html = (
+                f'<div class="scenario-watch">'
+                f'<span class="scenario-watch-label">WATCH:</span> {watch_list}'
+                f"</div>"
+            )
+
+        rationale_html = ""
+        if entry.rationale:
+            rationale_html = f'<div class="scenario-rationale">{entry.rationale}</div>'
+
+        dir_badge = f'<span class="badge badge-{entry.direction.value}">{entry.direction.value}</span>'
+
+        scenario_blocks += (
+            f'<div class="scenario-block">'
+            f'<div class="scenario-header">'
+            f'<span class="scenario-probability">{entry.probability:.0%}</span>'
+            f'<span class="scenario-name">{entry.mechanism_name}</span>'
+            f'<span class="scenario-category-chip">{category_display}</span>'
+            f'<span class="stage-chip {stage_class}">{entry.chain_stage}</span>'
+            f" {dir_badge}"
+            f"</div>"
+            f"{rationale_html}"
+            f"{watch_html}"
+            f"</div>"
+        )
+
+    # Technicals section
+    technicals_html = ""
+    if tech_snapshot:
+        technicals_html = _technicals_html(tech_snapshot, intel.net_direction)
+
+    card_html = (
+        f'<div class="asset-card asset-card-{dir_val}">'
+        # Header row
+        f'<div class="asset-card-header">'
+        f'<span class="asset-ticker">{intel.ticker}</span>'
+        f'<span class="asset-class-label">{ac_label}</span>'
+        f'<span class="badge badge-{dir_val}">{dir_val}</span>'
+        f'<span class="{score_class} score-value">{score_sign}{intel.net_score:.2f}</span>'
+        f" {scenario_count_html}"
+        f"{conflict_html}"
+        f"</div>"
+        # Scenario sub-blocks
+        f"{scenario_blocks}"
+        # Technicals
+        f"{technicals_html}"
+        f"</div>"
+    )
+    st.markdown(card_html, unsafe_allow_html=True)
+
+
+def _render_scenario_view(
+    report: WeeklyReport,
     selected_assets: list[AssetClass],
     direction_filter: str,
     min_conviction: float,
 ) -> None:
-    """Main render entry point for the single-page actionable view."""
+    """Render the scenario-based asset view."""
+    all_intel = build_scenario_intel(report)
 
-    if not report:
-        st.info("No report data yet. Run the weekly pipeline to generate your first report.")
-        return
+    # Apply filters
+    filtered = [
+        i for i in all_intel
+        if i.asset_class in selected_assets
+    ]
 
-    # --- Regime banner ---
-    _render_regime_banner(report)
+    # Use abs(net_score) as a proxy for conviction filtering
+    if min_conviction > 0:
+        filtered = [i for i in filtered if abs(i.net_score) >= min_conviction * 0.5]
 
-    # --- Build enriched intel ---
+    if direction_filter == "Bullish":
+        filtered = [i for i in filtered if i.net_direction == SentimentDirection.BULLISH]
+    elif direction_filter == "Bearish":
+        filtered = [i for i in filtered if i.net_direction == SentimentDirection.BEARISH]
+
+    # Fetch technicals
+    all_tickers = tuple(sorted({i.ticker for i in filtered}))
+    tech_snapshots = _fetch_technicals(all_tickers) if all_tickers else {}
+
+    # Partition by direction
+    bullish = sorted(
+        [i for i in filtered if i.net_direction == SentimentDirection.BULLISH],
+        key=lambda i: abs(i.net_score),
+        reverse=True,
+    )
+    bearish = sorted(
+        [i for i in filtered if i.net_direction == SentimentDirection.BEARISH],
+        key=lambda i: abs(i.net_score),
+        reverse=True,
+    )
+    neutral = sorted(
+        [i for i in filtered if i.net_direction == SentimentDirection.NEUTRAL],
+        key=lambda i: i.scenario_count,
+        reverse=True,
+    )
+
+    if bullish:
+        st.markdown(
+            f'<div class="call-section-header call-section-bullish">'
+            f"BULLISH SCENARIOS ({len(bullish)})</div>",
+            unsafe_allow_html=True,
+        )
+        for intel in bullish:
+            _render_scenario_card(intel, tech_snapshots.get(intel.ticker))
+
+    if bearish:
+        st.markdown(
+            f'<div class="call-section-header call-section-bearish">'
+            f"BEARISH SCENARIOS ({len(bearish)})</div>",
+            unsafe_allow_html=True,
+        )
+        for intel in bearish:
+            _render_scenario_card(intel, tech_snapshots.get(intel.ticker))
+
+    if neutral:
+        neutral_rows = ""
+        for intel in neutral:
+            ac_label = ASSET_LABELS.get(intel.asset_class, intel.asset_class.value)
+            neutral_rows += (
+                f'<div style="display:flex;align-items:center;gap:10px;'
+                f'padding:6px 0;border-bottom:1px solid #1a2332;">'
+                f'<span class="asset-ticker" style="font-size:0.85rem;">{intel.ticker}</span>'
+                f'<span class="asset-class-label">{ac_label}</span>'
+                f'<span class="score-value score-neutral">{intel.net_score:+.2f}</span>'
+                f'<span class="scenario-count-chip">{intel.scenario_count} scenarios</span>'
+                f"</div>"
+            )
+        st.markdown(
+            f'<details class="extra-narratives" style="margin-top:12px;">'
+            f'<summary class="call-section-header call-section-neutral" '
+            f'style="cursor:pointer;">NEUTRAL ({len(neutral)})</summary>'
+            f'<div style="padding-top:8px;">{neutral_rows}</div>'
+            f"</details>",
+            unsafe_allow_html=True,
+        )
+
+    if not bullish and not bearish and not neutral:
+        st.markdown(
+            '<div class="text-muted" style="text-align:center;padding:40px 0;">'
+            "No scenario calls match the current filters.</div>",
+            unsafe_allow_html=True,
+        )
+
+
+def _render_legacy_view(
+    report: WeeklyReport,
+    selected_assets: list[AssetClass],
+    direction_filter: str,
+    min_conviction: float,
+) -> None:
+    """Legacy narrative-based rendering (existing logic, extracted)."""
     all_intel = build_asset_intel(report)
 
-    # --- Apply filters ---
     filtered = [
         i for i in all_intel
         if i.asset_class in selected_assets and i.conviction >= min_conviction
@@ -555,11 +757,9 @@ def render_actionable_view(
     elif direction_filter == "Bearish":
         filtered = [i for i in filtered if i.direction == SentimentDirection.BEARISH]
 
-    # --- Fetch technicals for all visible tickers (cached 1h) ---
     all_tickers = tuple(sorted({i.ticker for i in filtered}))
     tech_snapshots = _fetch_technicals(all_tickers) if all_tickers else {}
 
-    # --- Partition by direction ---
     bullish = sorted(
         [i for i in filtered if i.direction == SentimentDirection.BULLISH],
         key=lambda i: abs(i.score),
@@ -576,7 +776,6 @@ def render_actionable_view(
         reverse=True,
     )
 
-    # --- Bullish calls ---
     if bullish:
         st.markdown(
             f'<div class="call-section-header call-section-bullish">'
@@ -586,7 +785,6 @@ def render_actionable_view(
         for intel in bullish:
             _render_asset_card(intel, tech_snapshots.get(intel.ticker))
 
-    # --- Bearish calls ---
     if bearish:
         st.markdown(
             f'<div class="call-section-header call-section-bearish">'
@@ -596,7 +794,6 @@ def render_actionable_view(
         for intel in bearish:
             _render_asset_card(intel, tech_snapshots.get(intel.ticker))
 
-    # --- Neutral (collapsed) ---
     if neutral:
         neutral_rows = ""
         for intel in neutral:
@@ -626,3 +823,25 @@ def render_actionable_view(
             "No asset calls match the current filters.</div>",
             unsafe_allow_html=True,
         )
+
+
+def render_actionable_view(
+    report: WeeklyReport | None,
+    selected_assets: list[AssetClass],
+    direction_filter: str,
+    min_conviction: float,
+) -> None:
+    """Main render entry point for the single-page actionable view."""
+
+    if not report:
+        st.info("No report data yet. Run the weekly pipeline to generate your first report.")
+        return
+
+    # --- Regime banner ---
+    _render_regime_banner(report)
+
+    # --- Branch: scenario-based vs legacy rendering ---
+    if report.scenario_views:
+        _render_scenario_view(report, selected_assets, direction_filter, min_conviction)
+    else:
+        _render_legacy_view(report, selected_assets, direction_filter, min_conviction)

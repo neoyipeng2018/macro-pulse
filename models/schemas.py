@@ -125,6 +125,110 @@ class PriceValidation(BaseModel):
     hit: bool = False            # did predicted direction match actual?
 
 
+class ChainStep(BaseModel):
+    """A single step in a macro transmission mechanism's causal chain."""
+
+    description: str
+    observable: str
+    lag_days: list[int] = Field(default_factory=lambda: [0, 5])  # [min, max] days
+
+
+class MechanismAssetImpact(BaseModel):
+    """Expected asset impact from a transmission mechanism."""
+
+    ticker: str
+    asset_class: AssetClass
+    direction: SentimentDirection
+    sensitivity: str = "medium"     # low/medium/high
+    lag_days: list[int] = Field(default_factory=lambda: [0, 7])
+
+
+class TransmissionMechanism(BaseModel):
+    """A known macro causal chain from the mechanism catalog."""
+
+    id: str                         # e.g. "fed_dovish_pivot"
+    name: str
+    category: str                   # monetary_policy, risk_sentiment, etc.
+    description: str
+    trigger_sources: list[str] = Field(default_factory=list)  # SignalSource values
+    trigger_keywords: list[str] = Field(default_factory=list)
+    chain_steps: list[ChainStep] = Field(default_factory=list)
+    asset_impacts: list[MechanismAssetImpact] = Field(default_factory=list)
+    confirmation_criteria: list[str] = Field(default_factory=list)
+    invalidation_criteria: list[str] = Field(default_factory=list)
+
+
+class ChainStepProgress(BaseModel):
+    """Progress status for a single step in an active scenario's chain."""
+
+    step_index: int
+    description: str
+    status: str = "not_started"     # not_started/emerging/confirmed/invalidated
+    evidence: str = ""
+    confidence: float = 0.0
+
+
+class ScenarioAssetImpact(BaseModel):
+    """Asset impact within an active scenario."""
+
+    ticker: str
+    asset_class: AssetClass
+    direction: SentimentDirection
+    magnitude: float = 0.5          # 0-1
+    conviction: float = 0.5
+    rationale: str = ""
+
+
+class ActiveScenario(BaseModel):
+    """A transmission mechanism activated by current signals."""
+
+    id: str = ""
+    mechanism_id: str
+    mechanism_name: str
+    category: str
+    probability: float = 0.5
+    trigger_signals: list[str] = Field(default_factory=list)
+    trigger_evidence: str = ""
+    chain_progress: list[ChainStepProgress] = Field(default_factory=list)
+    current_stage: str = "early"    # early/mid/late/complete
+    expected_magnitude: str = "moderate"  # minor/moderate/major
+    asset_impacts: list[ScenarioAssetImpact] = Field(default_factory=list)
+    watch_items: list[str] = Field(default_factory=list)
+    confirmation_status: str = ""
+    invalidation_risk: str = ""
+    horizon: str = "1 week"
+    confidence: float = 0.5
+
+
+class AssetScenarioEntry(BaseModel):
+    """A single scenario's contribution to an asset's outlook."""
+
+    mechanism_id: str
+    mechanism_name: str
+    category: str
+    probability: float
+    direction: SentimentDirection
+    magnitude: float
+    conviction: float
+    rationale: str = ""
+    trigger_evidence: str = ""
+    chain_stage: str = "early"
+    watch_items: list[str] = Field(default_factory=list)
+
+
+class ScenarioAssetView(BaseModel):
+    """Aggregated scenario-based outlook for a single asset."""
+
+    ticker: str
+    asset_class: AssetClass
+    scenarios: list[AssetScenarioEntry] = Field(default_factory=list)
+    net_direction: SentimentDirection = SentimentDirection.NEUTRAL
+    net_score: float = 0.0
+    dominant_scenario: str = ""
+    scenario_count: int = 0
+    conflict_flag: bool = False     # True if scenarios disagree on direction
+
+
 class WeeklyReport(BaseModel):
     """Complete weekly macro-pulse report."""
 
@@ -139,3 +243,5 @@ class WeeklyReport(BaseModel):
     price_validations: list[PriceValidation] = Field(default_factory=list)
     signal_count: int = 0
     summary: str = ""            # AI-generated executive summary
+    active_scenarios: list[ActiveScenario] = Field(default_factory=list)
+    scenario_views: list[ScenarioAssetView] = Field(default_factory=list)
