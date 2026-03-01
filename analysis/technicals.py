@@ -33,22 +33,32 @@ TICKER_TO_YF: dict[str, str] = {
     # Energy
     "WTI Crude": "CL=F",
     "Brent": "BZ=F",
+    "Brent Crude": "BZ=F",
     "Natural Gas": "NG=F",
     # Crypto
     "BTC-USD": "BTC-USD",
+    "Bitcoin": "BTC-USD",
     "ETH-USD": "ETH-USD",
+    "Ethereum": "ETH-USD",
     "SOL-USD": "SOL-USD",
+    "Solana": "SOL-USD",
     # Indices
     "S&P 500": "^GSPC",
     "Nasdaq": "^IXIC",
+    "Nasdaq Composite": "^IXIC",
     "Dow": "^DJI",
+    "Dow Jones": "^DJI",
     "Russell 2000": "^RUT",
     "FTSE": "^FTSE",
     "Nikkei": "^N225",
     "Hang Seng": "^HSI",
-    # Bonds
+    "VIX": "^VIX",
+    # Bonds / Rates
     "US 10Y": "^TNX",
+    "US 10Y Yield": "^TNX",
     "US 2Y": "^IRX",
+    "US 2Y Yield": "^IRX",
+    "TLT": "TLT",
 }
 
 
