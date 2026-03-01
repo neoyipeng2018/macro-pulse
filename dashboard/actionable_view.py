@@ -649,7 +649,7 @@ def _render_scenario_view(
     report: WeeklyReport,
     selected_assets: list[AssetClass],
     direction_filter: str,
-    min_conviction: float,
+    min_threshold: float,
 ) -> None:
     """Render the scenario-based asset view."""
     all_intel = build_scenario_intel(report)
@@ -660,9 +660,12 @@ def _render_scenario_view(
         if i.asset_class in selected_assets
     ]
 
-    # Use abs(net_score) as a proxy for conviction filtering
-    if min_conviction > 0:
-        filtered = [i for i in filtered if abs(i.net_score) >= min_conviction * 0.5]
+    # Filter by max scenario probability for this asset
+    if min_threshold > 0:
+        filtered = [
+            i for i in filtered
+            if any(s.probability >= min_threshold for s in i.scenarios)
+        ]
 
     if direction_filter == "Bullish":
         filtered = [i for i in filtered if i.net_direction == SentimentDirection.BULLISH]
@@ -742,14 +745,14 @@ def _render_legacy_view(
     report: WeeklyReport,
     selected_assets: list[AssetClass],
     direction_filter: str,
-    min_conviction: float,
+    min_threshold: float,
 ) -> None:
     """Legacy narrative-based rendering (existing logic, extracted)."""
     all_intel = build_asset_intel(report)
 
     filtered = [
         i for i in all_intel
-        if i.asset_class in selected_assets and i.conviction >= min_conviction
+        if i.asset_class in selected_assets and i.conviction >= min_threshold
     ]
 
     if direction_filter == "Bullish":
@@ -829,7 +832,7 @@ def render_actionable_view(
     report: WeeklyReport | None,
     selected_assets: list[AssetClass],
     direction_filter: str,
-    min_conviction: float,
+    min_threshold: float,
 ) -> None:
     """Main render entry point for the single-page actionable view."""
 
@@ -842,6 +845,6 @@ def render_actionable_view(
 
     # --- Branch: scenario-based vs legacy rendering ---
     if report.scenario_views:
-        _render_scenario_view(report, selected_assets, direction_filter, min_conviction)
+        _render_scenario_view(report, selected_assets, direction_filter, min_threshold)
     else:
-        _render_legacy_view(report, selected_assets, direction_filter, min_conviction)
+        _render_legacy_view(report, selected_assets, direction_filter, min_threshold)

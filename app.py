@@ -84,16 +84,16 @@ with st.sidebar:
         unsafe_allow_html=True,
     )
 
-    # Min conviction slider
-    min_conviction_pct = st.slider(
-        "MIN CONVICTION",
+    # Min probability / conviction slider
+    min_threshold_pct = st.slider(
+        "MIN PROBABILITY",
         min_value=0,
         max_value=100,
         value=0,
         step=5,
         format="%d%%",
     )
-    min_conviction = min_conviction_pct / 100.0
+    min_threshold = min_threshold_pct / 100.0
 
 # --- Load Data ---
 report = load_latest_report()
@@ -113,4 +113,4 @@ st.markdown(
 )
 
 # --- Single-page actionable view ---
-render_actionable_view(report, selected_assets, direction_filter, min_conviction)
+render_actionable_view(report, selected_assets, direction_filter, min_threshold)
