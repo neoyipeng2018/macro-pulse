@@ -46,19 +46,24 @@ Rules:
   Do NOT add historical context, dates, or data points from your training data that are
   not in the signals. If a signal doesn't specify a date for a data point, do not invent one.
 
-CRITICAL — CONSENSUS vs. EDGE ANALYSIS:
-To make money in markets, we must be DIFFERENT from consensus. For EACH narrative you must:
-1. Identify what the MARKET CONSENSUS currently believes about this theme. What are sell-side
-   analysts, financial media, and futures pricing telling us? What is already "priced in"?
-2. Cite verifiable sources for the consensus view (e.g. "CME FedWatch shows 85% probability
-   of June cut", "Bloomberg consensus expects NFP +180k", "Goldman/JPM calling for $2800 gold",
-   "options market pricing 2% move around CPI"). Use specific, checkable references.
-3. Explain HOW our signal-derived view DIFFERS from consensus:
-   - "contrarian": our signals point in the OPPOSITE direction to consensus
+CRITICAL — PER-ASSET CONSENSUS vs. EDGE ANALYSIS:
+To make money in markets, we must be DIFFERENT from consensus. For EACH ASSET in each narrative:
+1. Identify what the MARKET CONSENSUS currently believes about THIS SPECIFIC ASSET.
+   What are sell-side analysts, financial media, and futures pricing telling us about this asset?
+   What is already "priced in" for this asset specifically?
+2. Include verifiable consensus references in the asset's consensus_view (e.g. "CME FedWatch
+   shows 85% probability of June cut", "Bloomberg consensus expects NFP +180k",
+   "Goldman/JPM calling for $2800 gold", "options market pricing 2% move around CPI").
+3. Classify the edge_type for EACH ASSET individually:
+   - "contrarian": our signals point in the OPPOSITE direction to consensus for this asset
    - "more_aggressive": same direction as consensus but our signals suggest a BIGGER move
    - "more_passive": same direction as consensus but our signals suggest LESS conviction
    - "aligned": our view matches consensus (lowest alpha potential — flag this honestly)
-4. Explain WHY our signals see something consensus is missing or underweighting.
+4. Explain WHY our signals see something different for this asset in edge_rationale.
+
+IMPORTANT: Each asset should have its OWN consensus_view, edge_type, and edge_rationale —
+Gold's consensus is different from Bitcoin's, even within the same narrative. Be specific to
+the asset, not the overall theme.
 
 The edge analysis is what separates actionable intelligence from noise. Be honest — if our
 signals agree with consensus, say so. The value is in identifying WHERE we diverge.""",
@@ -76,14 +81,10 @@ Return your analysis as a JSON array:
     "title": "narrative title capturing directional thesis",
     "summary": "2-3 sentence summary of the macro narrative and its trading implications",
     "asset_sentiments": [
-        {{"ticker": "Gold", "asset_class": "metals", "direction": "bullish", "conviction": 0.8, "rationale": "Safe-haven demand rises on geopolitical uncertainty"}},
-        {{"ticker": "DXY", "asset_class": "fx", "direction": "bearish", "conviction": 0.7, "rationale": "Dovish Fed expectations weigh on USD"}},
-        {{"ticker": "S&P 500", "asset_class": "indices", "direction": "bearish", "conviction": 0.5, "rationale": "Risk-off sentiment from trade war escalation"}}
+        {{"ticker": "Gold", "asset_class": "metals", "direction": "bullish", "conviction": 0.8, "rationale": "Safe-haven demand rises on geopolitical uncertainty", "consensus_view": "Goldman/JPM calling for $2800 gold on steady central bank buying; market already pricing modest safe-haven bid", "edge_type": "more_aggressive", "edge_rationale": "Our signals show accelerating central bank purchases and retail ETF inflows not yet reflected in sell-side targets"}},
+        {{"ticker": "DXY", "asset_class": "fx", "direction": "bearish", "conviction": 0.7, "rationale": "Dovish Fed expectations weigh on USD", "consensus_view": "CME FedWatch shows 85% probability of June cut; consensus expects gradual USD weakening", "edge_type": "more_aggressive", "edge_rationale": "Multiple signals suggest faster-than-expected easing cycle, implying sharper USD decline"}},
+        {{"ticker": "S&P 500", "asset_class": "indices", "direction": "bearish", "conviction": 0.5, "rationale": "Risk-off sentiment from trade war escalation", "consensus_view": "Sell-side consensus still targets 5400 S&P by year-end; dip-buying mentality prevails", "edge_type": "contrarian", "edge_rationale": "Our signals show deteriorating breadth and rising credit spreads that consensus is underweighting"}}
     ],
-    "consensus_view": "What the market/analyst consensus currently believes about this theme. Be specific — cite pricing, positioning, or prevailing sell-side view.",
-    "consensus_sources": ["CME FedWatch pricing", "Bloomberg survey median", "CFTC positioning data from signals"],
-    "edge_type": "contrarian|more_aggressive|more_passive|aligned",
-    "edge_rationale": "Why our signal-derived view differs from consensus. What are our signals seeing that the market is missing or underweighting?",
     "affected_asset_classes": ["fx", "metals", "indices"],
     "horizon": "1-2 weeks",
     "trend": "intensifying|stable|fading",

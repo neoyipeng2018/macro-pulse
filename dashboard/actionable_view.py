@@ -121,11 +121,15 @@ def build_asset_intel(report: WeeklyReport) -> list[AssetIntel]:
                     all_sources.add(label)
             signal_sources = sorted(all_sources)
 
-            # Consensus & edge from primary narrative
-            consensus_view = primary_narr.consensus_view
+            # Consensus & edge from primary asset sentiment (per-asset),
+            # falling back to narrative-level for older data
+            consensus_view = primary_asent.consensus_view or primary_narr.consensus_view
             consensus_sources = primary_narr.consensus_sources
-            edge_type = primary_narr.edge_type
-            edge_rationale = primary_narr.edge_rationale
+            try:
+                edge_type = EdgeType(primary_asent.edge_type) if primary_asent.edge_type else primary_narr.edge_type
+            except ValueError:
+                edge_type = primary_narr.edge_type
+            edge_rationale = primary_asent.edge_rationale or primary_narr.edge_rationale
 
             # Build extra narratives (skip the primary)
             extra = []
@@ -134,6 +138,11 @@ def build_asset_intel(report: WeeklyReport) -> list[AssetIntel]:
                     SOURCE_LABELS.get(s.source, s.source.value)
                     for s in narr.signals
                 })
+                # Prefer per-asset consensus, fall back to narrative-level
+                try:
+                    extra_edge = EdgeType(asent.edge_type) if asent.edge_type else narr.edge_type
+                except ValueError:
+                    extra_edge = narr.edge_type
                 extra.append(
                     NarrativeContext(
                         narrative_title=narr.title,
@@ -142,9 +151,9 @@ def build_asset_intel(report: WeeklyReport) -> list[AssetIntel]:
                         trend=narr.trend,
                         rationale=asent.rationale or narr.summary,
                         signal_sources=narr_sources,
-                        consensus_view=narr.consensus_view,
-                        edge_type=narr.edge_type,
-                        edge_rationale=narr.edge_rationale,
+                        consensus_view=asent.consensus_view or narr.consensus_view,
+                        edge_type=extra_edge,
+                        edge_rationale=asent.edge_rationale or narr.edge_rationale,
                         consensus_sources=narr.consensus_sources,
                     )
                 )

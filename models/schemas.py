@@ -62,6 +62,10 @@ class AssetSentiment(BaseModel):
     direction: SentimentDirection
     conviction: float = 0.5   # 0-1, strength of directional view
     rationale: str = ""       # why this direction
+    # Per-asset consensus vs. edge (what does the market think about THIS asset?)
+    consensus_view: str = ""
+    edge_type: str = "aligned"       # contrarian|more_aggressive|more_passive|aligned
+    edge_rationale: str = ""
 
 
 class EdgeType(str, Enum):
