@@ -66,6 +66,8 @@ class AssetSentiment(BaseModel):
     consensus_view: str = ""
     edge_type: str = "aligned"       # contrarian|more_aggressive|more_passive|aligned
     edge_rationale: str = ""
+    catalyst: str = ""               # specific event/trigger creating the opportunity
+    exit_condition: str = ""         # how to know when price discovery is done
 
 
 class EdgeType(str, Enum):

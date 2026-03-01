@@ -7,6 +7,7 @@ from dataclasses import dataclass, field
 
 import streamlit as st
 
+from analysis.technicals import TechnicalSnapshot, compute_technicals
 from models.schemas import (
     AssetClass,
     EdgeType,
@@ -47,6 +48,15 @@ EDGE_LABELS = {
 
 
 @dataclass
+class SourceSignalDetail:
+    """A single source signal's displayable info."""
+
+    title: str
+    url: str
+    snippet: str
+
+
+@dataclass
 class NarrativeContext:
     """A single narrative's contribution to an asset's view."""
 
@@ -83,6 +93,11 @@ class AssetIntel:
     consensus_sources: list[str] = field(default_factory=list)
     edge_type: EdgeType = EdgeType.ALIGNED
     edge_rationale: str = ""
+    # Catalyst and exit condition from primary narrative
+    catalyst: str = ""
+    exit_condition: str = ""
+    # Grouped source signals with links and snippets
+    source_details: dict[str, list[SourceSignalDetail]] = field(default_factory=dict)
 
 
 def build_asset_intel(report: WeeklyReport) -> list[AssetIntel]:
@@ -113,13 +128,28 @@ def build_asset_intel(report: WeeklyReport) -> list[AssetIntel]:
             trend_counts = Counter(n.trend for n, _ in entries)
             trend = trend_counts.most_common(1)[0][0]
 
-            # Collect unique signal sources across all narratives for this asset
+            # Collect unique signal sources + details across all narratives
             all_sources: set[str] = set()
+            source_details: dict[str, list[SourceSignalDetail]] = {}
+            seen_signal_ids: set[str] = set()
             for narr, _ in entries:
                 for sig in narr.signals:
                     label = SOURCE_LABELS.get(sig.source, sig.source.value)
                     all_sources.add(label)
+                    # Deduplicate signals by id
+                    if sig.id and sig.id in seen_signal_ids:
+                        continue
+                    if sig.id:
+                        seen_signal_ids.add(sig.id)
+                    snippet = (sig.content[:200] + "…") if len(sig.content) > 200 else sig.content
+                    source_details.setdefault(label, []).append(
+                        SourceSignalDetail(title=sig.title, url=sig.url, snippet=snippet)
+                    )
             signal_sources = sorted(all_sources)
+
+            # Catalyst & exit condition from primary asset sentiment
+            catalyst = getattr(primary_asent, "catalyst", "") or ""
+            exit_condition = getattr(primary_asent, "exit_condition", "") or ""
 
             # Consensus & edge from primary asset sentiment (per-asset),
             # falling back to narrative-level for older data
@@ -163,6 +193,7 @@ def build_asset_intel(report: WeeklyReport) -> list[AssetIntel]:
             primary_rationale = ""
             source_narrative = score.top_narrative
             signal_sources = []
+            source_details = {}
             extra = []
             consensus_view = ""
             consensus_sources = []
@@ -187,6 +218,9 @@ def build_asset_intel(report: WeeklyReport) -> list[AssetIntel]:
                 consensus_sources=consensus_sources,
                 edge_type=edge_type,
                 edge_rationale=edge_rationale,
+                catalyst=catalyst,
+                exit_condition=exit_condition,
+                source_details=source_details,
             )
         )
 
@@ -305,7 +339,137 @@ def _consensus_edge_html(intel: AssetIntel) -> str:
     return edge_section
 
 
-def _render_asset_card(intel: AssetIntel) -> None:
+def _catalyst_exit_html(intel: AssetIntel) -> str:
+    """Build the catalyst + exit condition section for an asset card."""
+    if not intel.catalyst and not intel.exit_condition:
+        return ""
+
+    rows = ""
+    if intel.catalyst:
+        rows += (
+            f'<div class="catalyst-row">'
+            f'<span class="catalyst-label">CATALYST:</span>'
+            f'<span class="catalyst-text">{intel.catalyst}</span>'
+            f'</div>'
+        )
+    if intel.exit_condition:
+        rows += (
+            f'<div class="catalyst-row">'
+            f'<span class="exit-label">EXIT WHEN:</span>'
+            f'<span class="exit-text">{intel.exit_condition}</span>'
+            f'</div>'
+        )
+
+    return f'<div class="catalyst-exit-block">{rows}</div>'
+
+
+def _source_details_html(source_details: dict[str, list[SourceSignalDetail]]) -> str:
+    """Build collapsed <details> sections per source type with links and snippets."""
+    if not source_details:
+        return ""
+
+    sections = ""
+    for label in sorted(source_details):
+        signals = source_details[label]
+        count = len(signals)
+        items_html = ""
+        for sig in signals:
+            title_html = sig.title
+            if sig.url:
+                title_html = (
+                    f'<a href="{sig.url}" target="_blank" rel="noopener" '
+                    f'class="source-detail-link">{sig.title}</a>'
+                )
+            snippet_html = ""
+            if sig.snippet:
+                snippet_html = f'<div class="source-detail-snippet">{sig.snippet}</div>'
+            items_html += (
+                f'<div class="source-detail-item">'
+                f'<div class="source-detail-title">{title_html}</div>'
+                f'{snippet_html}'
+                f'</div>'
+            )
+        sections += (
+            f'<details class="source-detail-group">'
+            f'<summary><span class="source-chip">{label}</span>'
+            f'<span class="source-detail-count">{count} signal{"s" if count != 1 else ""}</span>'
+            f'</summary>'
+            f'<div class="source-detail-list">{items_html}</div>'
+            f'</details>'
+        )
+
+    return f'<div class="source-details-container">{sections}</div>'
+
+
+@st.cache_data(ttl=3600, show_spinner=False)
+def _fetch_technicals(tickers: tuple[str, ...]) -> dict[str, TechnicalSnapshot]:
+    """Cached wrapper — tuple arg required for Streamlit hashing."""
+    return compute_technicals(list(tickers))
+
+
+def _technicals_html(
+    snapshot: TechnicalSnapshot, direction: SentimentDirection
+) -> str:
+    """Build a collapsible technicals section for an asset card."""
+    # Alignment badge
+    macro_dir = direction.value  # "bullish" / "bearish" / "neutral"
+    if snapshot.agrees_with and snapshot.agrees_with == macro_dir:
+        badge = '<span class="tech-agree-badge">ALIGNED</span>'
+    elif snapshot.agrees_with and snapshot.agrees_with != macro_dir and macro_dir != "neutral":
+        badge = '<span class="tech-diverge-badge">DIVERGENT</span>'
+    else:
+        badge = ""
+
+    # RSI signal color
+    if snapshot.rsi_label == "Overbought":
+        rsi_cls = "tech-signal-bearish"
+    elif snapshot.rsi_label == "Oversold":
+        rsi_cls = "tech-signal-bullish"
+    else:
+        rsi_cls = "tech-signal-neutral"
+
+    # MACD signal color
+    macd_cls = "tech-signal-bullish" if snapshot.macd_histogram > 0 else "tech-signal-bearish"
+
+    # SMA signal color
+    if snapshot.sma_20_dist_pct > 0:
+        sma_cls = "tech-signal-bullish"
+    elif snapshot.sma_20_dist_pct < 0:
+        sma_cls = "tech-signal-bearish"
+    else:
+        sma_cls = "tech-signal-neutral"
+
+    # MACD display value
+    macd_arrow = "&#9650;" if snapshot.macd_histogram > 0 else "&#9660;"
+
+    return (
+        f'<details class="technicals-section">'
+        f"<summary>Technicals {badge}</summary>"
+        f'<div class="tech-body">'
+        # RSI row
+        f'<div class="tech-row">'
+        f'<span class="tech-label">RSI(14)</span>'
+        f'<span class="tech-value">{snapshot.rsi:.1f}</span>'
+        f'<span class="tech-signal {rsi_cls}">{snapshot.rsi_label}</span>'
+        f"</div>"
+        # MACD row
+        f'<div class="tech-row">'
+        f'<span class="tech-label">MACD</span>'
+        f'<span class="tech-value">{macd_arrow}</span>'
+        f'<span class="tech-signal {macd_cls}">{snapshot.macd_label}</span>'
+        f"</div>"
+        # SMA row
+        f'<div class="tech-row">'
+        f'<span class="tech-label">20d SMA</span>'
+        f'<span class="tech-value">{snapshot.sma_20_dist_pct:+.1f}%</span>'
+        f'<span class="tech-signal {sma_cls}">{snapshot.sma_20_label}</span>'
+        f"</div>"
+        f"</div>"
+        f"</details>"
+    )
+
+
+def _render_asset_card(intel: AssetIntel, tech_snapshot: TechnicalSnapshot | None = None) -> None:
     """Render a single asset intel card."""
     dir_val = intel.direction.value
     score_sign = "+" if intel.score > 0 else ""
@@ -321,7 +485,10 @@ def _render_asset_card(intel: AssetIntel) -> None:
         f'<span class="source-chip">{src}</span>' for src in intel.signal_sources
     )
 
+    catalyst_exit_html = _catalyst_exit_html(intel)
+    technicals_html = _technicals_html(tech_snapshot, intel.direction) if tech_snapshot else ""
     consensus_html = _consensus_edge_html(intel)
+    source_details_html = _source_details_html(intel.source_details)
 
     card_html = (
         f'<div class="asset-card asset-card-{dir_val}">'
@@ -337,6 +504,10 @@ def _render_asset_card(intel: AssetIntel) -> None:
         f"</div>"
         # Rationale
         f'<div class="rationale-text">{intel.primary_rationale}</div>'
+        # Catalyst & exit condition
+        f"{catalyst_exit_html}"
+        # Technical indicators (collapsed)
+        f"{technicals_html}"
         # Consensus vs. edge
         f"{consensus_html}"
         # Source + source chips
@@ -344,6 +515,8 @@ def _render_asset_card(intel: AssetIntel) -> None:
         f" · {intel.narrative_count} narrative{'s' if intel.narrative_count != 1 else ''}"
         f" · {source_chips}"
         f"</div>"
+        # Collapsed source details with links and snippets
+        f"{source_details_html}"
         # Extra narratives (inline HTML details/summary)
         f"{extra_html}"
         f"</div>"
@@ -380,6 +553,10 @@ def render_actionable_view(
     elif direction_filter == "Bearish":
         filtered = [i for i in filtered if i.direction == SentimentDirection.BEARISH]
 
+    # --- Fetch technicals for all visible tickers (cached 1h) ---
+    all_tickers = tuple(sorted({i.ticker for i in filtered}))
+    tech_snapshots = _fetch_technicals(all_tickers) if all_tickers else {}
+
     # --- Partition by direction ---
     bullish = sorted(
         [i for i in filtered if i.direction == SentimentDirection.BULLISH],
@@ -405,7 +582,7 @@ def render_actionable_view(
             unsafe_allow_html=True,
         )
         for intel in bullish:
-            _render_asset_card(intel)
+            _render_asset_card(intel, tech_snapshots.get(intel.ticker))
 
     # --- Bearish calls ---
     if bearish:
@@ -415,7 +592,7 @@ def render_actionable_view(
             unsafe_allow_html=True,
         )
         for intel in bearish:
-            _render_asset_card(intel)
+            _render_asset_card(intel, tech_snapshots.get(intel.ticker))
 
     # --- Neutral (collapsed) ---
     if neutral:

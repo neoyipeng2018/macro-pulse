@@ -68,6 +68,8 @@ def extract_narratives(signals: list[Signal], llm: BaseChatModel) -> list[Narrat
                             consensus_view=str(sent.get("consensus_view", "")),
                             edge_type=str(sent.get("edge_type", "aligned")),
                             edge_rationale=str(sent.get("edge_rationale", "")),
+                            catalyst=str(sent.get("catalyst", "")),
+                            exit_condition=str(sent.get("exit_condition", "")),
                         )
                     )
                 except (KeyError, ValueError) as e:

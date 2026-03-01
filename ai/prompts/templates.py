@@ -33,6 +33,15 @@ Rules:
   - "direction": bullish, bearish, or neutral
   - "conviction": 0.0-1.0 (how strongly this narrative supports the direction)
   - "rationale": one sentence explaining WHY this narrative is bullish/bearish for this asset
+  - "catalyst": the specific event, data release, or trigger that creates this edge NOW
+    (e.g. "FOMC meeting March 19 — dovish hold expected to weaken USD",
+     "CPI print Friday — consensus +0.3% but leading indicators suggest softer").
+    Be concrete: name the event, date, and mechanism. If no single catalyst, cite the
+    strongest near-term trigger.
+  - "exit_condition": how to know when price discovery is done and the trade should be exited.
+    Include BOTH a profit-taking signal AND an invalidation signal. Be specific with
+    levels, events, or observable market behavior (e.g. "Take profit: DXY breaks below
+    103.00. Invalidated if: DXY reclaims 104.50 on hawkish Fed surprise").
 - Assess the narrative horizon: "1 week", "1-2 weeks", "2-4 weeks", "1 month"
 - Assess trend: intensifying, stable, or fading
 - Provide a confidence score (0-1) based on signal corroboration and strength
@@ -81,9 +90,9 @@ Return your analysis as a JSON array:
     "title": "narrative title capturing directional thesis",
     "summary": "2-3 sentence summary of the macro narrative and its trading implications",
     "asset_sentiments": [
-        {{"ticker": "Gold", "asset_class": "metals", "direction": "bullish", "conviction": 0.8, "rationale": "Safe-haven demand rises on geopolitical uncertainty", "consensus_view": "Goldman/JPM calling for $2800 gold on steady central bank buying; market already pricing modest safe-haven bid", "edge_type": "more_aggressive", "edge_rationale": "Our signals show accelerating central bank purchases and retail ETF inflows not yet reflected in sell-side targets"}},
-        {{"ticker": "DXY", "asset_class": "fx", "direction": "bearish", "conviction": 0.7, "rationale": "Dovish Fed expectations weigh on USD", "consensus_view": "CME FedWatch shows 85% probability of June cut; consensus expects gradual USD weakening", "edge_type": "more_aggressive", "edge_rationale": "Multiple signals suggest faster-than-expected easing cycle, implying sharper USD decline"}},
-        {{"ticker": "S&P 500", "asset_class": "indices", "direction": "bearish", "conviction": 0.5, "rationale": "Risk-off sentiment from trade war escalation", "consensus_view": "Sell-side consensus still targets 5400 S&P by year-end; dip-buying mentality prevails", "edge_type": "contrarian", "edge_rationale": "Our signals show deteriorating breadth and rising credit spreads that consensus is underweighting"}}
+        {{"ticker": "Gold", "asset_class": "metals", "direction": "bullish", "conviction": 0.8, "rationale": "Safe-haven demand rises on geopolitical uncertainty", "consensus_view": "Goldman/JPM calling for $2800 gold on steady central bank buying; market already pricing modest safe-haven bid", "edge_type": "more_aggressive", "edge_rationale": "Our signals show accelerating central bank purchases and retail ETF inflows not yet reflected in sell-side targets", "catalyst": "PBoC reserve data release Thursday — expected to show 5th consecutive month of gold accumulation", "exit_condition": "Take profit: Gold breaks $2850 resistance. Invalidated if: drops below $2720 on risk-on reversal"}},
+        {{"ticker": "DXY", "asset_class": "fx", "direction": "bearish", "conviction": 0.7, "rationale": "Dovish Fed expectations weigh on USD", "consensus_view": "CME FedWatch shows 85% probability of June cut; consensus expects gradual USD weakening", "edge_type": "more_aggressive", "edge_rationale": "Multiple signals suggest faster-than-expected easing cycle, implying sharper USD decline", "catalyst": "FOMC minutes Wednesday — market watching for any signal of earlier QT taper", "exit_condition": "Take profit: DXY breaks below 103.00. Invalidated if: DXY reclaims 104.50 on hawkish surprise"}},
+        {{"ticker": "S&P 500", "asset_class": "indices", "direction": "bearish", "conviction": 0.5, "rationale": "Risk-off sentiment from trade war escalation", "consensus_view": "Sell-side consensus still targets 5400 S&P by year-end; dip-buying mentality prevails", "edge_type": "contrarian", "edge_rationale": "Our signals show deteriorating breadth and rising credit spreads that consensus is underweighting", "catalyst": "Tariff deadline April 2 — escalation risk not priced into vol surface", "exit_condition": "Take profit: S&P breaks below 5100 on volume. Invalidated if: tariff deal announced or S&P reclaims 5350"}}
     ],
     "affected_asset_classes": ["fx", "metals", "indices"],
     "horizon": "1-2 weeks",
