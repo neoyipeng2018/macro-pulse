@@ -210,6 +210,17 @@ def run_pipeline(collect_only: bool = False, sources: list[str] | None = None):
         json.dump(report.model_dump(mode="json"), f, indent=2, default=str)
     logger.info("JSON report saved to %s", report_path)
 
+    # Export to Google Sheets (optional)
+    from config.settings import settings as cfg
+
+    if cfg.google_sheets_spreadsheet_id:
+        try:
+            from exports.sheets import export_to_sheets
+
+            export_to_sheets(report)
+        except Exception as e:
+            logger.error("Google Sheets export failed: %s", e)
+
     # Print summary
     print("\n" + "=" * 60)
     print(f"MACRO-PULSE WEEKLY REPORT — {week_start.strftime('%b %d')} to {week_end.strftime('%b %d, %Y')}")

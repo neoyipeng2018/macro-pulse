@@ -26,6 +26,7 @@ plotly = "^5.0"
 tenacity = "^9.0"
 tqdm = "^4.0"
 pytrends = "^4.9"
+gspread = "^6.0"
 
 [tool.poetry.group.dev.dependencies]
 pytest = "^8.0"

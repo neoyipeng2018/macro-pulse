@@ -30,6 +30,10 @@ class Settings(BaseSettings):
     twitter_bearer_token: str = ""
     finnhub_api_key: str = ""
 
+    # Google Sheets export
+    google_sheets_credentials_file: str = ""
+    google_sheets_spreadsheet_id: str = ""
+
     # App config
     max_narratives: int = 30
     narrative_lookback_weeks: int = 12
