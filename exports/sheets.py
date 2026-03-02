@@ -72,23 +72,54 @@ def _write_asset_scores(
     sh: gspread.Spreadsheet, report: WeeklyReport, week: str
 ) -> None:
     headers = [
-        "Week", "Ticker", "Asset Class", "Direction", "Score",
-        "Conviction", "Narrative Count", "Top Narrative",
+        "Week", "Ticker", "Asset Class", "Direction",
+        "Composite Score", "Narrative (40%)", "Technical (25%)",
+        "Scenario (20%)", "Contrarian (15%)",
+        "Confidence", "Conflict", "Edge Type",
+        "Narrative Count", "Top Narrative",
     ]
     ws = _get_or_create_worksheet(sh, "Asset Scores", headers)
-    rows = [
-        [
-            week,
-            s.ticker,
-            s.asset_class.value,
-            s.direction.value,
-            s.score,
-            s.conviction,
-            s.narrative_count,
-            s.top_narrative,
+
+    # Prefer composite scores (full breakdown); fall back to basic asset scores
+    if report.composite_scores:
+        rows = [
+            [
+                week,
+                cs.ticker,
+                cs.asset_class.value,
+                cs.direction.value,
+                cs.composite_score,
+                cs.narrative_score,
+                cs.technical_score,
+                cs.scenario_score,
+                cs.contrarian_bonus,
+                cs.confidence,
+                cs.conflict_flag,
+                cs.edge_type,
+                cs.narrative_count,
+                cs.top_narrative,
+            ]
+            for cs in report.composite_scores
         ]
-        for s in report.asset_scores
-    ]
+    else:
+        rows = [
+            [
+                week,
+                s.ticker,
+                s.asset_class.value,
+                s.direction.value,
+                s.score,
+                s.score,  # narrative only
+                "", "", "",  # no technical/scenario/contrarian
+                s.conviction,
+                False,
+                "",
+                s.narrative_count,
+                s.top_narrative,
+            ]
+            for s in report.asset_scores
+        ]
+
     if rows:
         ws.append_rows(rows, value_input_option="USER_ENTERED")
 
@@ -122,7 +153,10 @@ def _write_trade_sheet(
     sh: gspread.Spreadsheet, report: WeeklyReport, week: str
 ) -> None:
     headers = [
-        "Week", "Ticker", "Direction", "Composite Score", "Entry Price",
+        "Week", "Ticker", "Direction", "Composite Score",
+        "Narrative (40%)", "Technical (25%)", "Scenario (20%)",
+        "Contrarian (15%)", "Calibration Mult",
+        "Entry Price",
         "Position USD", "Position Size", "Portfolio %", "Stop Loss",
         "Take Profit", "Partial TP", "R:R", "Risk USD", "Reward USD",
         "Horizon Days", "Confidence", "Regime", "Conflict", "Narrative",
@@ -134,6 +168,11 @@ def _write_trade_sheet(
             t.ticker,
             t.direction,
             t.composite_score,
+            t.narrative_score,
+            t.technical_score,
+            t.scenario_score,
+            t.contrarian_bonus,
+            t.calibration_mult,
             t.entry_price,
             t.position_usd,
             t.position_size,

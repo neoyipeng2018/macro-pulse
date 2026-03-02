@@ -273,6 +273,11 @@ class Trade(BaseModel):
     ticker: str
     direction: str = "LONG"             # LONG / SHORT
     composite_score: float = 0.0
+    narrative_score: float = 0.0      # component: narrative sentiment ±1.0
+    technical_score: float = 0.0      # component: technical bias ±1.0
+    scenario_score: float = 0.0       # component: probability-weighted scenario ±1.0
+    contrarian_bonus: float = 0.0     # component: +0.3 contrarian, -0.1 aligned
+    calibration_mult: float = 1.0     # calibration multiplier applied
     entry_price: float = 0.0
     position_usd: float = 0.0
     position_size: float = 0.0          # in asset units (e.g., 0.029 BTC)

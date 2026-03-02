@@ -37,10 +37,13 @@ TICKER_TO_YF: dict[str, str] = {
     "Natural Gas": "NG=F",
     # Crypto
     "BTC-USD": "BTC-USD",
+    "BTC": "BTC-USD",
     "Bitcoin": "BTC-USD",
     "ETH-USD": "ETH-USD",
+    "ETH": "ETH-USD",
     "Ethereum": "ETH-USD",
     "SOL-USD": "SOL-USD",
+    "SOL": "SOL-USD",
     "Solana": "SOL-USD",
     # Indices
     "S&P 500": "^GSPC",

@@ -296,6 +296,7 @@ def run_pipeline(collect_only: bool = False, sources: list[str] | None = None):
     trades = build_trades(
         composite_scores, trade_params, sized_positions, risk_results,
         regime, report_id=uuid.uuid4().hex[:12],
+        calibration_mult=cal_mult,
     )
     logger.info("Generated %d actionable trades", len(trades))
 

@@ -29,6 +29,7 @@ def build_trades(
     risk_results: list[RiskCheckResult],
     regime: EconomicRegime,
     report_id: str = "",
+    calibration_mult: float = 1.0,
 ) -> list[Trade]:
     """Assemble Trade objects from all components.
 
@@ -92,6 +93,11 @@ def build_trades(
                 ticker=score.ticker,
                 direction=direction,
                 composite_score=score.composite_score,
+                narrative_score=score.narrative_score,
+                technical_score=score.technical_score,
+                scenario_score=score.scenario_score,
+                contrarian_bonus=score.contrarian_bonus,
+                calibration_mult=calibration_mult,
                 entry_price=round(entry, 2),
                 position_usd=sz.position_usd,
                 position_size=round(position_size, 6),
