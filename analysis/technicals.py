@@ -120,7 +120,7 @@ def _macd(close: pd.Series) -> tuple[float, str]:
     return float(current), f"{direction}, {momentum}"
 
 
-def _sma_distance(close: pd.Series, period: int = 20) -> tuple[float, str]:
+def _sma_distance(close: pd.Series, period: int = 20, is_crypto: bool = False) -> tuple[float, str]:
     """Percentage distance from SMA and descriptive label."""
     sma = close.rolling(window=period).mean()
     current_price = close.iloc[-1]
@@ -130,12 +130,13 @@ def _sma_distance(close: pd.Series, period: int = 20) -> tuple[float, str]:
         return 0.0, "Insufficient data"
 
     dist_pct = ((current_price - current_sma) / current_sma) * 100
+    extended_threshold = 8 if is_crypto else 3
 
     if dist_pct > 0:
-        qualifier = "extended" if abs(dist_pct) > 3 else "near"
+        qualifier = "extended" if abs(dist_pct) > extended_threshold else "near"
         label = f"+{dist_pct:.1f}% above — {qualifier}"
     elif dist_pct < 0:
-        qualifier = "extended" if abs(dist_pct) > 3 else "near"
+        qualifier = "extended" if abs(dist_pct) > extended_threshold else "near"
         label = f"{dist_pct:.1f}% below — {qualifier}"
     else:
         label = "At SMA"
@@ -143,15 +144,17 @@ def _sma_distance(close: pd.Series, period: int = 20) -> tuple[float, str]:
     return float(dist_pct), label
 
 
-def _overall_bias(rsi: float, macd_hist: float, sma_dist: float) -> str | None:
+def _overall_bias(rsi: float, macd_hist: float, sma_dist: float, is_crypto: bool = False) -> str | None:
     """If 2+ of 3 indicators lean the same direction, return that direction."""
     bullish = 0
     bearish = 0
 
-    # RSI
-    if rsi < 30:
+    # RSI (wider thresholds for crypto: 25/80 instead of 30/70)
+    oversold = 25 if is_crypto else 30
+    overbought = 80 if is_crypto else 70
+    if rsi < oversold:
         bullish += 1  # Oversold = contrarian bullish
-    elif rsi > 70:
+    elif rsi > overbought:
         bearish += 1  # Overbought = contrarian bearish
     elif rsi > 50:
         bullish += 1
@@ -188,6 +191,8 @@ def compute_technicals(tickers: list[str]) -> dict[str, TechnicalSnapshot]:
         return {}
 
     # Build mapping: yf_symbol -> original ticker name
+    # Also build reverse set of known yf symbols so raw tickers pass through
+    known_yf_symbols = set(TICKER_TO_YF.values())
     yf_to_orig: dict[str, str] = {}
     yf_symbols: list[str] = []
     for t in tickers:
@@ -195,6 +200,10 @@ def compute_technicals(tickers: list[str]) -> dict[str, TechnicalSnapshot]:
         if yf_sym:
             yf_to_orig[yf_sym] = t
             yf_symbols.append(yf_sym)
+        elif t in known_yf_symbols:
+            # Raw Yahoo Finance ticker passed directly
+            yf_to_orig[t] = t
+            yf_symbols.append(t)
         else:
             logger.debug("No yfinance mapping for ticker %s", t)
 
@@ -210,26 +219,29 @@ def compute_technicals(tickers: list[str]) -> dict[str, TechnicalSnapshot]:
     if df.empty:
         return {}
 
+    _CRYPTO_YF_SYMBOLS = {"BTC-USD", "ETH-USD", "SOL-USD"}
     results: dict[str, TechnicalSnapshot] = {}
 
     for yf_sym in yf_symbols:
         orig = yf_to_orig[yf_sym]
+        is_crypto = yf_sym in _CRYPTO_YF_SYMBOLS
         try:
-            # yf.download returns multi-level columns for multiple tickers,
-            # single-level for a single ticker
-            if len(yf_symbols) == 1:
-                close = df["Close"].dropna()
-            else:
+            # yf.download returns multi-level columns; extract per-symbol Series
+            if isinstance(df.columns, pd.MultiIndex):
                 close = df["Close"][yf_sym].dropna()
+            else:
+                close = df["Close"].dropna()
 
             if len(close) < 30:
                 continue
 
-            # RSI
+            # RSI (wider thresholds for crypto: 80/25 instead of 70/30)
             rsi_val = _rsi(close)
-            if rsi_val > 70:
+            overbought = 80 if is_crypto else 70
+            oversold = 25 if is_crypto else 30
+            if rsi_val > overbought:
                 rsi_label = "Overbought"
-            elif rsi_val < 30:
+            elif rsi_val < oversold:
                 rsi_label = "Oversold"
             else:
                 rsi_label = "Neutral"
@@ -238,10 +250,10 @@ def compute_technicals(tickers: list[str]) -> dict[str, TechnicalSnapshot]:
             macd_hist, macd_label = _macd(close)
 
             # SMA distance
-            sma_dist, sma_label = _sma_distance(close)
+            sma_dist, sma_label = _sma_distance(close, is_crypto=is_crypto)
 
             # Overall bias
-            agrees = _overall_bias(rsi_val, macd_hist, sma_dist)
+            agrees = _overall_bias(rsi_val, macd_hist, sma_dist, is_crypto=is_crypto)
 
             results[orig] = TechnicalSnapshot(
                 rsi=round(rsi_val, 1),

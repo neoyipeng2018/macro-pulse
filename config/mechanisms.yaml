@@ -2,6 +2,21 @@
 # Each mechanism defines a known macro causal chain linking signals to asset impacts.
 # The LLM's job is to match incoming signals to these mechanisms, not invent new ones.
 
+# Filter to these categories only. Comment out to load all.
+# Crypto focus: keep crypto + key macro drivers that move crypto.
+enabled_categories:
+  - crypto               # crypto-native mechanisms
+  - monetary_policy      # rate expectations directly move crypto
+  - risk_sentiment       # risk-on/off drives crypto flows
+  # - growth_inflation
+  # - geopolitical
+  # - fx_specific
+  # - commodity
+  # - bonds
+  # - credit
+  # - china_em
+  # - fiscal
+
 mechanisms:
 
   # ============================================================================
@@ -1192,7 +1207,7 @@ mechanisms:
       - Gold breaks below structural support
 
   # ============================================================================
-  # CRYPTO (2)
+  # CRYPTO (5)
   # ============================================================================
 
   - id: crypto_liquidity_proxy

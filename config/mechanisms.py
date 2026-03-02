@@ -35,9 +35,12 @@ def load_mechanisms() -> list[TransmissionMechanism]:
         return []
 
     raw_list = data.get("mechanisms", [])
+    enabled_categories = data.get("enabled_categories")
     mechanisms: list[TransmissionMechanism] = []
 
     for item in raw_list:
+        if enabled_categories and item.get("category") not in enabled_categories:
+            continue
         try:
             chain_steps = [
                 ChainStep(**step) for step in item.get("chain_steps", [])

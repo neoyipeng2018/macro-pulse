@@ -10,6 +10,8 @@ from collectors.fear_greed import FearGreedCollector
 from collectors.market_data import MarketDataCollector
 from collectors.twitter import TwitterCollector
 from collectors.economic_calendar import EconomicCalendarCollector
+from collectors.funding_rates import FundingRatesCollector
+from collectors.onchain import OnChainCollector
 
 
 def test_all_collectors_inherit_base():
@@ -24,6 +26,8 @@ def test_all_collectors_inherit_base():
         MarketDataCollector,
         TwitterCollector,
         EconomicCalendarCollector,
+        FundingRatesCollector,
+        OnChainCollector,
     ]
     for cls in collectors:
         assert issubclass(cls, BaseCollector), f"{cls.__name__} must inherit BaseCollector"
@@ -97,3 +101,21 @@ def test_economic_calendar_fomc_fallback():
         assert s.metadata["is_forward_looking"] is True
         assert s.metadata["event_name"] == "FOMC Rate Decision"
         assert s.metadata["impact"] == "high"
+
+
+def test_funding_rates_collector_attributes():
+    """FundingRatesCollector should have symbols and thresholds."""
+    collector = FundingRatesCollector()
+    assert collector.source_name == "funding_rates"
+    assert "BTC" in collector.symbols
+    assert "ETH" in collector.symbols
+    assert "SOL" in collector.symbols
+    assert collector.extreme_long_threshold > 0
+    assert collector.extreme_short_threshold < 0
+
+
+def test_onchain_collector_attributes():
+    """OnChainCollector should have decline alert threshold."""
+    collector = OnChainCollector()
+    assert collector.source_name == "onchain"
+    assert collector.decline_alert_pct < 0

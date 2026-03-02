@@ -28,6 +28,9 @@ _DEFAULT_KEYWORDS = [
     "gold price", "bitcoin crash", "oil price", "dollar collapse", "safe haven",
     # Policy
     "rate cut", "inflation", "tariff", "trade war", "sanctions",
+    # Crypto-specific
+    "ethereum crash", "solana crash", "crypto crash", "crypto regulation",
+    "bitcoin ETF", "crypto winter",
 ]
 
 

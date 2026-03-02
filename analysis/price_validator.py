@@ -3,12 +3,20 @@
 import logging
 
 from models.schemas import (
+    AssetClass,
     PriceValidation,
     SentimentDirection,
     WeeklyAssetScore,
 )
 
 logger = logging.getLogger(__name__)
+
+
+def _direction_threshold(asset_class: AssetClass) -> float:
+    """Minimum weekly return % to count as directional."""
+    if asset_class == AssetClass.CRYPTO:
+        return 2.0   # crypto needs >2% to be directional
+    return 0.25       # traditional assets
 
 
 def validate_predictions(
@@ -29,10 +37,11 @@ def validate_predictions(
         if actual_pct is None:
             continue
 
-        # Determine actual direction
-        if actual_pct > 0.25:
+        # Determine actual direction (crypto needs a wider threshold)
+        threshold = _direction_threshold(score.asset_class)
+        if actual_pct > threshold:
             actual_dir = SentimentDirection.BULLISH
-        elif actual_pct < -0.25:
+        elif actual_pct < -threshold:
             actual_dir = SentimentDirection.BEARISH
         else:
             actual_dir = SentimentDirection.NEUTRAL

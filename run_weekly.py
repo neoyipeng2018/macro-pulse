@@ -30,6 +30,8 @@ def collect_signals(sources: list[str] | None = None) -> list:
     from collectors.prediction_markets import PredictionMarketCollector
     from collectors.spreads import SpreadsCollector
     from collectors.google_trends import GoogleTrendsCollector
+    from collectors.funding_rates import FundingRatesCollector
+    from collectors.onchain import OnChainCollector
 
     collectors = {
         "news": RSSNewsCollector,
@@ -43,9 +45,15 @@ def collect_signals(sources: list[str] | None = None) -> list:
         "prediction_markets": PredictionMarketCollector,
         "spreads": SpreadsCollector,
         "google_trends": GoogleTrendsCollector,
+        "funding_rates": FundingRatesCollector,
+        "onchain": OnChainCollector,
     }
 
-    enabled = sources or list(collectors.keys())
+    if sources:
+        enabled = sources
+    else:
+        from config.settings import settings as cfg
+        enabled = cfg.sources.get("enabled_collectors", list(collectors.keys()))
     all_signals = []
 
     for name in tqdm(enabled, desc="Collecting signals"):
@@ -79,21 +87,32 @@ def run_pipeline(collect_only: bool = False, sources: list[str] | None = None):
         logger.warning("No signals collected. Exiting.")
         return
 
-    # Step 1b: Filter stale signals
+    # Step 1b: Filter stale signals (crypto sources expire faster)
     run_date = datetime.utcnow()
-    max_age_days = 10  # signals older than this are dropped
-    cutoff = run_date - timedelta(days=max_age_days)
+    CRYPTO_SOURCES = {"fear_greed", "funding_rates", "onchain"}
+    CRYPTO_MAX_AGE = 5
+    DEFAULT_MAX_AGE = 10
+
+    crypto_cutoff = run_date - timedelta(days=CRYPTO_MAX_AGE)
+    default_cutoff = run_date - timedelta(days=DEFAULT_MAX_AGE)
+
     before = len(signals)
-    signals = [
-        s for s in signals
-        if s.timestamp.replace(tzinfo=None) >= cutoff
-        or s.metadata.get("is_forward_looking")
-    ]
+    filtered = []
+    for s in signals:
+        if s.metadata.get("is_forward_looking"):
+            filtered.append(s)
+        elif s.source.value in CRYPTO_SOURCES or s.metadata.get("asset_class") == "crypto":
+            if s.timestamp.replace(tzinfo=None) >= crypto_cutoff:
+                filtered.append(s)
+        else:
+            if s.timestamp.replace(tzinfo=None) >= default_cutoff:
+                filtered.append(s)
+    signals = filtered
     dropped = before - len(signals)
     if dropped:
         logger.info(
-            "Relevance filter: dropped %d signals older than %d days",
-            dropped, max_age_days,
+            "Relevance filter: dropped %d stale signals (crypto: %dd, default: %dd)",
+            dropped, CRYPTO_MAX_AGE, DEFAULT_MAX_AGE,
         )
     logger.info("Signals after relevance filter: %d", len(signals))
 
@@ -251,7 +270,7 @@ def main():
     parser.add_argument(
         "--sources",
         nargs="+",
-        choices=["news", "reddit", "central_bank", "economic_data", "cot", "fear_greed", "market_data", "economic_calendar", "prediction_markets", "spreads", "google_trends"],
+        choices=["news", "reddit", "central_bank", "economic_data", "cot", "fear_greed", "market_data", "economic_calendar", "prediction_markets", "spreads", "google_trends", "funding_rates", "onchain"],
         help="Specific sources to collect from (default: all)",
     )
     args = parser.parse_args()

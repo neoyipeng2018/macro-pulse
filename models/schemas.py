@@ -32,6 +32,8 @@ class SignalSource(str, Enum):
     PREDICTION_MARKET = "prediction_market"
     GOOGLE_TRENDS = "google_trends"
     SPREADS = "spreads"
+    FUNDING_RATES = "funding_rates"
+    ONCHAIN = "onchain"
 
 
 class EconomicRegime(str, Enum):

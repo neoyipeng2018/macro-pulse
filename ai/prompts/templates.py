@@ -42,6 +42,13 @@ Rules:
     Include BOTH a profit-taking signal AND an invalidation signal. Be specific with
     levels, events, or observable market behavior (e.g. "Take profit: DXY breaks below
     103.00. Invalidated if: DXY reclaims 104.50 on hawkish Fed surprise").
+  For CRYPTO assets (Bitcoin, Ethereum, Solana) specifically:
+    - Express targets as PERCENTAGE moves from current price, not just dollar levels.
+      Example: "Take profit at +8% ($72,500). Intermediate: +4% ($69,500)."
+    - Include an INTERMEDIATE profit target (partial take-profit level).
+    - Include a RISK/REWARD ratio. Example: "Risk: -5% ($63,300). Reward: +8%. R:R = 1.6x"
+    - Reference observable exit triggers: funding rate normalization, OI collapse,
+      Fear & Greed regime change, or stablecoin flow reversal — not just price levels.
 - Assess the narrative horizon: "3-5 days", "1 week", "1-2 weeks"
 - Assess trend: intensifying, stable, or fading
 - Provide a confidence score (0-1) based on signal corroboration and strength
@@ -62,6 +69,29 @@ SIGNAL INTERPRETATION GUIDANCE:
 - Google Trends spikes (source: google_trends) are CONTRARIAN — retail panic searches
   often signal short-term bottoms. A spike in "market crash" searches is bullish at the
   1-week horizon, not bearish.
+
+CRYPTO-SPECIFIC SIGNAL INTERPRETATION:
+- Funding rate signals (source: funding_rates) are CRITICAL for crypto:
+  * Rate >0.03%: leveraged longs crowded — BEARISH contrarian signal.
+    Above 0.05% = high liquidation risk within 1-3 days.
+  * Rate <-0.01%: leveraged shorts crowded — BULLISH (short squeeze setup).
+    Below -0.03% = strong short squeeze potential.
+  * Open interest rising + price rising = new longs (trend confirmation).
+  * Open interest rising + price falling = new shorts (bear pressure).
+  * Open interest dropping >20% in 24h = leverage flush, often marks local bottom.
+  You MUST cite funding rate and OI levels when making crypto directional calls.
+
+- On-chain/stablecoin signals (source: onchain) indicate crypto liquidity:
+  * Stablecoin supply growing = dry powder entering = bullish.
+  * Stablecoin supply shrinking = capital leaving = bearish.
+  * Stablecoin market cap drop >1% in 7 days = potential contagion risk.
+  Cite stablecoin supply trends when making crypto calls.
+
+- Fear & Greed (source: fear_greed): below 20 = CONTRARIAN bullish (1-week).
+  Above 80 = CONTRARIAN bearish. Between 35-65 = low signal value.
+
+- Crypto weekly moves are 5-15x equity volatility. A 2% BTC move is noise.
+  Calibrate conviction and exit conditions accordingly.
 
 CRITICAL — PER-ASSET CONSENSUS vs. EDGE ANALYSIS:
 To make money in markets, we must be DIFFERENT from consensus. For EACH ASSET in each narrative:
@@ -187,7 +217,12 @@ Rules:
 - Do NOT activate mechanisms that are not in the catalog. If signals suggest
   something novel, skip it — the narrative pipeline handles unstructured themes.
 - TEMPORAL GROUNDING: Today is {run_date}. Only cite evidence from the provided
-  signals. Do not hallucinate data or dates from your training data.""",
+  signals. Do not hallucinate data or dates from your training data.
+- For crypto mechanisms (crypto_leverage_liquidation, stablecoin_contagion,
+  crypto_liquidity_proxy): funding rate signals are PRIMARY evidence for
+  crypto_leverage_liquidation — do NOT activate without citing funding rate levels.
+  Stablecoin supply signals are PRIMARY evidence for stablecoin_contagion —
+  do NOT activate without citing stablecoin market cap data.""",
         ),
         (
             "human",

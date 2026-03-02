@@ -42,6 +42,8 @@ SOURCE_LABELS = {
     SignalSource.PREDICTION_MARKET: "Predictions",
     SignalSource.GOOGLE_TRENDS: "Trends",
     SignalSource.SPREADS: "Spreads",
+    SignalSource.FUNDING_RATES: "Funding",
+    SignalSource.ONCHAIN: "On-Chain",
 }
 
 
@@ -500,7 +502,7 @@ def _render_asset_card(intel: AssetIntel, tech_snapshot: TechnicalSnapshot | Non
         f'<div class="asset-card asset-card-{dir_val}">'
         # Header row
         f'<div class="asset-card-header">'
-        f'<span class="asset-ticker">{intel.ticker}</span>'
+        f'<span class="asset-ticker">{_get_ticker_name(intel.ticker)}</span>'
         f'<span class="asset-class-label">{ac_label}</span>'
         f'<span class="badge badge-{dir_val}">{dir_val}</span>'
         f'<span class="{score_class} score-value">{score_sign}{intel.score:.2f}</span>'
@@ -553,6 +555,7 @@ class ScenarioAssetIntel:
     edge_rationale: str = ""
     catalyst: str = ""
     exit_condition: str = ""
+    source_details: dict[str, list[SourceSignalDetail]] = field(default_factory=dict)
 
 
 # Known financial source names to extract from consensus_view text
@@ -658,8 +661,10 @@ def build_scenario_intel(report: WeeklyReport) -> list[ScenarioAssetIntel]:
     # Build name→ticker map so we can match narrative asset names to scenario tickers
     name_to_ticker = _build_name_to_ticker_map()
 
-    # Build ticker → consensus lookup from narratives (highest-confidence per ticker)
+    # Build ticker → consensus lookup and source_details from narratives
     ticker_consensus: dict[str, dict] = {}
+    ticker_source_details: dict[str, dict[str, list[SourceSignalDetail]]] = {}
+    ticker_seen_signals: dict[str, set[str]] = {}
     for narrative in report.narratives:
         for asent in narrative.asset_sentiments:
             # Resolve narrative asset name to canonical ticker
@@ -682,11 +687,36 @@ def build_scenario_intel(report: WeeklyReport) -> list[ScenarioAssetIntel]:
                     "catalyst": getattr(asent, "catalyst", "") or "",
                     "exit_condition": getattr(asent, "exit_condition", "") or "",
                 }
+            # Collect source signals with links for this ticker
+            seen = ticker_seen_signals.setdefault(resolved_ticker, set())
+            details = ticker_source_details.setdefault(resolved_ticker, {})
+            for sig in narrative.signals:
+                if sig.id and sig.id in seen:
+                    continue
+                if sig.id:
+                    seen.add(sig.id)
+                label = SOURCE_LABELS.get(sig.source, sig.source.value)
+                snippet = (sig.content[:200] + "\u2026") if len(sig.content) > 200 else sig.content
+                details.setdefault(label, []).append(
+                    SourceSignalDetail(title=sig.title, url=sig.url, snippet=snippet)
+                )
+
+    # Build mechanism_id → chain_progress lookup from active_scenarios
+    # so we can backfill older reports where scenario_views lack chain_progress
+    mech_chain: dict[str, list] = {}
+    for sc in report.active_scenarios:
+        if sc.chain_progress:
+            mech_chain[sc.mechanism_id] = sc.chain_progress
 
     results: list[ScenarioAssetIntel] = []
     for sv in report.scenario_views:
         resolved_sv_ticker = name_to_ticker.get(sv.ticker.lower(), sv.ticker)
         cons = ticker_consensus.get(resolved_sv_ticker, {})
+        # Backfill chain_progress from active_scenarios for older reports
+        for entry in sv.scenarios:
+            if not entry.chain_progress and entry.mechanism_id in mech_chain:
+                entry.chain_progress = mech_chain[entry.mechanism_id]
+
         # Recompute avg_probability from scenario entries if missing from stored data
         avg_prob = sv.avg_probability
         if avg_prob == 0.0 and sv.scenarios:
@@ -708,6 +738,7 @@ def build_scenario_intel(report: WeeklyReport) -> list[ScenarioAssetIntel]:
                 edge_rationale=cons.get("edge_rationale", ""),
                 catalyst=cons.get("catalyst", ""),
                 exit_condition=cons.get("exit_condition", ""),
+                source_details=ticker_source_details.get(resolved_sv_ticker, {}),
             )
         )
     return results
@@ -776,6 +807,26 @@ def _scenario_catalyst_exit_html(intel: ScenarioAssetIntel) -> str:
     return f'<div class="catalyst-exit-block">{rows}</div>'
 
 
+def _build_ticker_to_name_map() -> dict[str, str]:
+    """Build a mapping from Yahoo Finance tickers to human-readable names."""
+    ticker_to_name: dict[str, str] = {}
+    for _class, items in settings.assets.items():
+        for item in items:
+            ticker_to_name[item["ticker"]] = item["name"]
+    return ticker_to_name
+
+
+_TICKER_NAMES: dict[str, str] = {}
+
+
+def _get_ticker_name(ticker: str) -> str:
+    """Return human-readable name for a ticker, falling back to the ticker itself."""
+    global _TICKER_NAMES
+    if not _TICKER_NAMES:
+        _TICKER_NAMES = _build_ticker_to_name_map()
+    return _TICKER_NAMES.get(ticker, ticker)
+
+
 def _render_scenario_card(
     intel: ScenarioAssetIntel,
     tech_snapshot: TechnicalSnapshot | None = None,
@@ -785,6 +836,7 @@ def _render_scenario_card(
     score_sign = "+" if intel.net_score > 0 else ""
     score_class = f"score-{dir_val}"
     ac_label = ASSET_LABELS.get(intel.asset_class, intel.asset_class.value)
+    display_name = _get_ticker_name(intel.ticker)
 
     conflict_html = ""
     if intel.conflict_flag:
@@ -866,11 +918,14 @@ def _render_scenario_card(
     if tech_snapshot:
         technicals_html = _technicals_html(tech_snapshot, intel.net_direction)
 
+    # Source details with links
+    source_details_html = _source_details_html(intel.source_details)
+
     card_html = (
         f'<div class="asset-card asset-card-{dir_val}">'
         # Header row
         f'<div class="asset-card-header">'
-        f'<span class="asset-ticker">{intel.ticker}</span>'
+        f'<span class="asset-ticker">{_get_ticker_name(intel.ticker)}</span>'
         f'<span class="asset-class-label">{ac_label}</span>'
         f'<span class="badge badge-{dir_val}">{dir_val}</span>'
         f'<span class="{score_class} score-value">{score_sign}{intel.net_score:.2f}</span>'
@@ -886,6 +941,8 @@ def _render_scenario_card(
         f"{catalyst_exit_html}"
         # Technicals
         f"{technicals_html}"
+        # Source signals with links
+        f"{source_details_html}"
         f"</div>"
     )
     st.markdown(card_html, unsafe_allow_html=True)
@@ -964,7 +1021,7 @@ def _render_scenario_view(
             neutral_rows += (
                 f'<div style="display:flex;align-items:center;gap:10px;'
                 f'padding:6px 0;border-bottom:1px solid #1a2332;">'
-                f'<span class="asset-ticker" style="font-size:0.85rem;">{intel.ticker}</span>'
+                f'<span class="asset-ticker" style="font-size:0.85rem;">{_get_ticker_name(intel.ticker)}</span>'
                 f'<span class="asset-class-label">{ac_label}</span>'
                 f'<span class="score-value score-neutral">{intel.net_score:+.2f}</span>'
                 f'<span class="scenario-count-chip">{intel.scenario_count} scenarios</span>'
@@ -1050,7 +1107,7 @@ def _render_legacy_view(
             neutral_rows += (
                 f'<div style="display:flex;align-items:center;gap:10px;'
                 f'padding:6px 0;border-bottom:1px solid #1a2332;">'
-                f'<span class="asset-ticker" style="font-size:0.85rem;">{intel.ticker}</span>'
+                f'<span class="asset-ticker" style="font-size:0.85rem;">{_get_ticker_name(intel.ticker)}</span>'
                 f'<span class="asset-class-label">{ac_label}</span>'
                 f'{_conviction_bar_html(intel.conviction, intel.direction)}'
                 f'<span class="horizon-chip">{intel.horizon}</span>'

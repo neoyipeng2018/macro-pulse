@@ -117,3 +117,11 @@ def test_economic_regime_enum():
     assert EconomicRegime.RISK_ON.value == "risk_on"
     assert EconomicRegime.STAGFLATION.value == "stagflation"
     assert EconomicRegime.TRANSITION.value == "transition"
+
+
+def test_signal_source_funding_rates():
+    assert SignalSource.FUNDING_RATES.value == "funding_rates"
+
+
+def test_signal_source_onchain():
+    assert SignalSource.ONCHAIN.value == "onchain"
