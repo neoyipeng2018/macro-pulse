@@ -233,6 +233,84 @@ class ScenarioAssetView(BaseModel):
     conflict_flag: bool = False     # True if scenarios disagree on direction
 
 
+class CompositeAssetScore(BaseModel):
+    """Composite score combining narrative, technical, scenario, and contrarian inputs."""
+
+    ticker: str
+    asset_class: AssetClass
+    direction: SentimentDirection
+    composite_score: float = 0.0       # -1.5 to +1.5 (contrarian bonus extends range)
+    confidence: float = 0.0            # 0-1
+    narrative_score: float = 0.0       # raw narrative ±1.0
+    technical_score: float = 0.0       # technical bias ±1.0
+    scenario_score: float = 0.0        # probability-weighted scenario ±1.0
+    contrarian_bonus: float = 0.0      # +0.3 contrarian, -0.1 aligned
+    narrative_count: int = 0
+    top_narrative: str = ""
+    conflict_flag: bool = False
+    edge_type: str = "aligned"
+
+
+class TradeParams(BaseModel):
+    """Structured trade parameters parsed from LLM exit conditions."""
+
+    ticker: str
+    direction: str = "long"             # "long" or "short"
+    entry_price: float = 0.0            # current market price at signal time
+    stop_loss_pct: float = -5.0         # e.g., -5.0
+    take_profit_pct: float = 8.0        # e.g., +8.0
+    intermediate_tp_pct: float | None = None  # e.g., +4.0 (partial exit)
+    risk_reward: float = 1.6            # e.g., 1.6
+    invalidation_triggers: list[str] = Field(default_factory=list)
+    horizon_days: int = 7
+
+
+class Trade(BaseModel):
+    """A fully specified actionable trade with sizing and risk parameters."""
+
+    id: str = Field(default_factory=lambda: "")
+    report_id: str = ""
+    ticker: str
+    direction: str = "LONG"             # LONG / SHORT
+    composite_score: float = 0.0
+    entry_price: float = 0.0
+    position_usd: float = 0.0
+    position_size: float = 0.0          # in asset units (e.g., 0.029 BTC)
+    portfolio_pct: float = 0.0          # % of capital
+    stop_loss_price: float = 0.0
+    take_profit_price: float = 0.0
+    intermediate_tp_price: float | None = None
+    risk_reward: float = 0.0
+    risk_usd: float = 0.0              # max loss in USD
+    reward_usd: float = 0.0            # max gain in USD
+    horizon_days: int = 7
+    confidence: float = 0.0
+    top_narrative: str = ""
+    invalidation_triggers: list[str] = Field(default_factory=list)
+    conflict_flag: bool = False
+    regime: str = ""
+    status: str = "proposed"            # proposed/open/partial_tp/closed/stopped/expired
+    exit_price: float | None = None
+    exit_time: datetime | None = None
+    exit_reason: str | None = None      # tp_hit/stop_hit/manual/expired/invalidated
+    pnl_usd: float | None = None
+    pnl_pct: float | None = None
+    notes: str = ""
+    created_at: datetime = Field(default_factory=datetime.utcnow)
+
+
+class PortfolioSnapshot(BaseModel):
+    """Point-in-time snapshot of portfolio state."""
+
+    id: str = Field(default_factory=lambda: "")
+    timestamp: datetime = Field(default_factory=datetime.utcnow)
+    total_capital: float = 0.0
+    deployed_capital: float = 0.0
+    open_positions: int = 0
+    unrealized_pnl: float = 0.0
+    realized_pnl_cumulative: float = 0.0
+
+
 class WeeklyReport(BaseModel):
     """Complete weekly macro-pulse report."""
 
@@ -249,3 +327,5 @@ class WeeklyReport(BaseModel):
     summary: str = ""            # AI-generated executive summary
     active_scenarios: list[ActiveScenario] = Field(default_factory=list)
     scenario_views: list[ScenarioAssetView] = Field(default_factory=list)
+    composite_scores: list[CompositeAssetScore] = Field(default_factory=list)
+    trades: list[Trade] = Field(default_factory=list)

@@ -1,0 +1,25 @@
+portfolio:
+  total_capital_usd: 10000        # adjust to actual
+  max_single_position_pct: 20     # never >20% in one trade
+  max_total_exposure_pct: 80      # never >80% deployed
+  max_correlated_exposure_pct: 50 # BTC+ETH+SOL combined cap
+
+risk:
+  base_risk_per_trade_pct: 2.0    # risk 2% of capital per trade
+  max_risk_per_trade_pct: 3.0     # hard cap even at max conviction
+  min_risk_per_trade_pct: 0.5     # minimum to bother
+
+conviction_scaling:                # composite score → risk multiplier
+  thresholds:
+    - { min_score: 1.0, risk_mult: 1.5 }   # strong conviction → 3% risk
+    - { min_score: 0.6, risk_mult: 1.0 }   # moderate → 2% risk
+    - { min_score: 0.3, risk_mult: 0.5 }   # weak → 1% risk
+    - { min_score: 0.0, risk_mult: 0.0 }   # below threshold → no trade
+
+regime_dampening:                  # regime → crypto exposure multiplier
+  risk_on: 1.0
+  goldilocks: 1.0
+  reflation: 0.8
+  transition: 0.6
+  risk_off: 0.4                    # risk_off halves crypto sizing
+  stagflation: 0.3

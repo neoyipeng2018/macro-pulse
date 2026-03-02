@@ -4,6 +4,7 @@ import streamlit as st
 
 from dashboard.actionable_view import render_actionable_view
 from dashboard.styles import inject_custom_css
+from dashboard.trade_view import render_trade_view
 from models.schemas import AssetClass
 from storage.store import init_db, load_latest_report
 
@@ -112,5 +113,11 @@ st.markdown(
     unsafe_allow_html=True,
 )
 
-# --- Single-page actionable view ---
-render_actionable_view(report, selected_assets, direction_filter, min_threshold)
+# --- Main content tabs ---
+tab_intel, tab_trades = st.tabs(["Intelligence", "Trading"])
+
+with tab_intel:
+    render_actionable_view(report, selected_assets, direction_filter, min_threshold)
+
+with tab_trades:
+    render_trade_view(report)

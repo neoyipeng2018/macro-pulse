@@ -147,6 +147,39 @@ def init_db() -> None:
             conflict_flag INTEGER,
             FOREIGN KEY (report_id) REFERENCES weekly_reports(id)
         );
+
+        CREATE TABLE IF NOT EXISTS trades (
+            id TEXT PRIMARY KEY,
+            report_id TEXT,
+            ticker TEXT NOT NULL,
+            direction TEXT NOT NULL,
+            entry_price REAL,
+            entry_time TEXT,
+            position_usd REAL,
+            position_size REAL,
+            stop_loss_price REAL,
+            take_profit_price REAL,
+            intermediate_tp_price REAL,
+            risk_reward REAL,
+            composite_score REAL,
+            status TEXT DEFAULT 'proposed',
+            exit_price REAL,
+            exit_time TEXT,
+            exit_reason TEXT,
+            pnl_usd REAL,
+            pnl_pct REAL,
+            notes TEXT
+        );
+
+        CREATE TABLE IF NOT EXISTS portfolio_snapshots (
+            id TEXT PRIMARY KEY,
+            timestamp TEXT,
+            total_capital REAL,
+            deployed_capital REAL,
+            open_positions INTEGER,
+            unrealized_pnl REAL,
+            realized_pnl_cumulative REAL
+        );
     """
     )
     # Migrate: add consensus columns if missing (existing databases)

@@ -33,6 +33,7 @@ def export_to_sheets(report: WeeklyReport) -> None:
     _write_asset_scores(sh, report, week)
     _write_scenarios(sh, report, week)
     _write_validations(sh, report, week)
+    _write_trade_sheet(sh, report, week)
 
     logger.info("Report exported to Google Sheets (week: %s)", week)
 
@@ -112,6 +113,44 @@ def _write_scenarios(
             "; ".join(sc.watch_items),
         ]
         for sc in report.active_scenarios
+    ]
+    if rows:
+        ws.append_rows(rows, value_input_option="USER_ENTERED")
+
+
+def _write_trade_sheet(
+    sh: gspread.Spreadsheet, report: WeeklyReport, week: str
+) -> None:
+    headers = [
+        "Week", "Ticker", "Direction", "Composite Score", "Entry Price",
+        "Position USD", "Position Size", "Portfolio %", "Stop Loss",
+        "Take Profit", "Partial TP", "R:R", "Risk USD", "Reward USD",
+        "Horizon Days", "Confidence", "Regime", "Conflict", "Narrative",
+    ]
+    ws = _get_or_create_worksheet(sh, "Trade Sheet", headers)
+    rows = [
+        [
+            week,
+            t.ticker,
+            t.direction,
+            t.composite_score,
+            t.entry_price,
+            t.position_usd,
+            t.position_size,
+            t.portfolio_pct,
+            t.stop_loss_price,
+            t.take_profit_price,
+            t.intermediate_tp_price or "",
+            t.risk_reward,
+            t.risk_usd,
+            t.reward_usd,
+            t.horizon_days,
+            t.confidence,
+            t.regime,
+            t.conflict_flag,
+            t.top_narrative,
+        ]
+        for t in report.trades
     ]
     if rows:
         ws.append_rows(rows, value_input_option="USER_ENTERED")
