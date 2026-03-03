@@ -13,6 +13,7 @@ venv/
 # Environment & credentials
 .env
 *.credentials.json
+config/gen-lang-client-*.json
 
 # Data (runtime)
 data/raw/
