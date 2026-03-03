@@ -13,7 +13,51 @@ from models.schemas import AssetClass, AssetSentiment, EdgeType, Narrative, Sent
 logger = logging.getLogger(__name__)
 
 
-def extract_narratives(signals: list[Signal], llm: BaseChatModel) -> list[Narrative]:
+def format_consensus_block(consensus_scores: list | None = None) -> str:
+    """Format consensus scores as a text block for the LLM prompt."""
+    if not consensus_scores:
+        return ""
+
+    lines = [
+        "CONSENSUS DATA (computed from market positioning, not estimated):"
+    ]
+    for cs in consensus_scores:
+        direction = cs.consensus_direction
+        score = cs.consensus_score
+        lines.append(f"{cs.ticker}: consensus_score = {score:+.2f} ({direction})")
+
+        components = cs.components or {}
+        if components.get("options_skew") is not None:
+            lines.append(f"  - Options skew: {components.get('options_skew', 0):+.2f} "
+                         f"({'calls favored' if components.get('options_skew', 0) > 0 else 'puts favored'} at weekly expiry)")
+        if cs.funding_rate_7d:
+            lines.append(f"  - 7-day accumulated funding: {cs.funding_rate_7d:+.4f}% "
+                         f"({'longs paying' if cs.funding_rate_7d > 0 else 'shorts paying'})")
+        if cs.top_trader_ls_ratio:
+            pct = cs.top_trader_ls_ratio / (1 + cs.top_trader_ls_ratio) * 100 if cs.top_trader_ls_ratio > 0 else 50
+            lines.append(f"  - Top trader L/S: {cs.top_trader_ls_ratio:.2f} ({pct:.0f}% long)")
+        if cs.etf_flow_5d:
+            lines.append(f"  - ETF flows 5-day: {cs.etf_flow_5d:+.0f}M "
+                         f"({'inflows' if cs.etf_flow_5d > 0 else 'outflows'})")
+        if cs.put_call_ratio:
+            lines.append(f"  - Put/Call ratio: {cs.put_call_ratio:.2f} "
+                         f"({'call-dominated' if cs.put_call_ratio < 0.7 else 'put-heavy' if cs.put_call_ratio > 1.0 else 'balanced'})")
+        if cs.max_pain_distance_pct:
+            lines.append(f"  - Max pain distance: {cs.max_pain_distance_pct:+.1f}% from current price")
+        if cs.oi_change_7d_pct:
+            lines.append(f"  - OI 7d change: {cs.oi_change_7d_pct:+.1f}%")
+        lines.append("")
+
+    lines.append("Use this consensus data to ground your per-asset edge analysis. "
+                 "Your job: given this consensus, what do our signals tell us that the market is missing?")
+    return "\n".join(lines)
+
+
+def extract_narratives(
+    signals: list[Signal],
+    llm: BaseChatModel,
+    consensus_scores: list | None = None,
+) -> list[Narrative]:
     """Process a batch of signals and extract macro narratives with asset sentiments."""
     if not signals:
         return []
@@ -24,9 +68,15 @@ def extract_narratives(signals: list[Signal], llm: BaseChatModel) -> list[Narrat
         for s in signals
     )
 
+    consensus_block = format_consensus_block(consensus_scores)
+
     run_date = datetime.utcnow().strftime("%Y-%m-%d")
     chain = NARRATIVE_EXTRACTION_PROMPT | llm
-    response = chain.invoke({"signals": signal_text, "run_date": run_date})
+    response = chain.invoke({
+        "signals": signal_text,
+        "run_date": run_date,
+        "consensus_block": consensus_block,
+    })
 
     # Build a lookup for signals by ID
     signal_map = {s.id: s for s in signals}

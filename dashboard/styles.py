@@ -907,6 +907,34 @@ details[data-testid="stExpander"] {
 .step-not_started .chain-step-status { color: #4a5568; }
 .step-invalidated .chain-step-desc { color: #FF1744; text-decoration: line-through; }
 .step-invalidated .chain-step-status { color: #FF1744; }
+
+/* === COMPOSITE SCORE BREAKDOWN === */
+.composite-breakdown {
+    display: flex;
+    align-items: center;
+    gap: 4px;
+    padding: 4px 0 2px 0;
+    flex-wrap: wrap;
+}
+.comp-label {
+    font-size: 0.55rem;
+    font-weight: 700;
+    color: #4a5568;
+    letter-spacing: 0.06em;
+    text-transform: uppercase;
+}
+.comp-val {
+    font-size: 0.65rem;
+    font-weight: 600;
+    color: #8892a4;
+    letter-spacing: 0.02em;
+    font-variant-numeric: tabular-nums;
+}
+.comp-sep {
+    color: #2a3442;
+    font-size: 0.55rem;
+    margin: 0 2px;
+}
 </style>
 """
 

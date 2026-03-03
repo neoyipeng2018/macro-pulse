@@ -7,27 +7,18 @@ from models.schemas import (
     WeeklyAssetScore,
 )
 
-# Trend multiplier: intensifying narratives carry more weight
-TREND_MULTIPLIER = {
-    "intensifying": 1.5,
-    "stable": 1.0,
-    "fading": 0.5,
-}
-
 
 def aggregate_asset_scores(narratives: list[Narrative]) -> list[WeeklyAssetScore]:
     """Aggregate per-asset sentiment across all narratives into weekly scores.
 
     Each asset gets a score from -1 (max bearish) to +1 (max bullish),
-    weighted by narrative confidence, conviction, and trend.
+    weighted by conviction and narrative confidence.
     """
     # Collect all sentiment votes per ticker
     ticker_votes: dict[str, list[dict]] = {}
     ticker_class: dict[str, AssetClass] = {}
 
     for narrative in narratives:
-        trend_mult = TREND_MULTIPLIER.get(narrative.trend, 1.0)
-
         for sent in narrative.asset_sentiments:
             key = sent.ticker
             if key not in ticker_votes:
@@ -41,7 +32,7 @@ def aggregate_asset_scores(narratives: list[Narrative]) -> list[WeeklyAssetScore
                 SentimentDirection.NEUTRAL: 0.0,
             }[sent.direction]
 
-            weight = sent.conviction * narrative.confidence * trend_mult
+            weight = sent.conviction * narrative.confidence
 
             ticker_votes[key].append({
                 "direction_val": dir_val,

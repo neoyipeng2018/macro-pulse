@@ -13,11 +13,14 @@ from config.settings import settings
 from models.schemas import (
     AssetClass,
     AssetScenarioEntry,
+    ConsensusScore,
+    DivergenceMetrics,
     EdgeType,
     Narrative,
     ScenarioAssetView,
     SentimentDirection,
     SignalSource,
+    TradeThesis,
     WeeklyAssetScore,
     WeeklyReport,
 )
@@ -106,10 +109,21 @@ class AssetIntel:
     exit_condition: str = ""
     # Grouped source signals with links and snippets
     source_details: dict[str, list[SourceSignalDetail]] = field(default_factory=dict)
+    # Composite score fields
+    composite_score: float = 0.0
+    narrative_score: float = 0.0
+    technical_score: float = 0.0
+    scenario_score: float = 0.0
+    contrarian_bonus: float = 0.0
 
 
 def build_asset_intel(report: WeeklyReport) -> list[AssetIntel]:
     """Link WeeklyAssetScore back to Narrative data to enrich each asset."""
+
+    # Build composite_by_ticker lookup from report.composite_scores
+    composite_by_ticker: dict[str, object] = {}
+    for cs in getattr(report, "composite_scores", None) or []:
+        composite_by_ticker[cs.ticker] = cs
 
     # Index narratives by ticker → list of (narrative, asset_sentiment)
     ticker_narratives: dict[str, list[tuple[Narrative, object]]] = {}
@@ -208,6 +222,9 @@ def build_asset_intel(report: WeeklyReport) -> list[AssetIntel]:
             edge_type = EdgeType.ALIGNED
             edge_rationale = ""
 
+        # Look up composite score for this ticker
+        comp = composite_by_ticker.get(score.ticker)
+
         results.append(
             AssetIntel(
                 ticker=score.ticker,
@@ -229,6 +246,11 @@ def build_asset_intel(report: WeeklyReport) -> list[AssetIntel]:
                 catalyst=catalyst,
                 exit_condition=exit_condition,
                 source_details=source_details,
+                composite_score=comp.composite_score if comp else 0.0,
+                narrative_score=comp.narrative_score if comp else 0.0,
+                technical_score=comp.technical_score if comp else 0.0,
+                scenario_score=comp.scenario_score if comp else 0.0,
+                contrarian_bonus=comp.contrarian_bonus if comp else 0.0,
             )
         )
 
@@ -480,7 +502,9 @@ def _technicals_html(
 def _render_asset_card(intel: AssetIntel, tech_snapshot: TechnicalSnapshot | None = None) -> None:
     """Render a single asset intel card."""
     dir_val = intel.direction.value
-    score_sign = "+" if intel.score > 0 else ""
+    # Use composite_score as primary display; fall back to narrative-only score
+    primary_score = intel.composite_score if intel.composite_score != 0.0 else intel.score
+    score_sign = "+" if primary_score > 0 else ""
     score_class = f"score-{dir_val}"
     trend_class = f"trend-{intel.trend}"
     ac_label = ASSET_LABELS.get(intel.asset_class, intel.asset_class.value)
@@ -498,6 +522,21 @@ def _render_asset_card(intel: AssetIntel, tech_snapshot: TechnicalSnapshot | Non
     consensus_html = _consensus_edge_html(intel)
     source_details_html = _source_details_html(intel.source_details)
 
+    # Component breakdown row (only shown when composite data exists)
+    composite_breakdown_html = ""
+    if intel.composite_score != 0.0:
+        composite_breakdown_html = (
+            f'<div class="composite-breakdown">'
+            f'<span class="comp-label">NAR</span><span class="comp-val">{intel.narrative_score:+.2f}</span>'
+            f'<span class="comp-sep">\u00b7</span>'
+            f'<span class="comp-label">TECH</span><span class="comp-val">{intel.technical_score:+.2f}</span>'
+            f'<span class="comp-sep">\u00b7</span>'
+            f'<span class="comp-label">SCEN</span><span class="comp-val">{intel.scenario_score:+.2f}</span>'
+            f'<span class="comp-sep">\u00b7</span>'
+            f'<span class="comp-label">EDGE</span><span class="comp-val">{intel.contrarian_bonus:+.2f}</span>'
+            f"</div>"
+        )
+
     card_html = (
         f'<div class="asset-card asset-card-{dir_val}">'
         # Header row
@@ -505,11 +544,13 @@ def _render_asset_card(intel: AssetIntel, tech_snapshot: TechnicalSnapshot | Non
         f'<span class="asset-ticker">{_get_ticker_name(intel.ticker)}</span>'
         f'<span class="asset-class-label">{ac_label}</span>'
         f'<span class="badge badge-{dir_val}">{dir_val}</span>'
-        f'<span class="{score_class} score-value">{score_sign}{intel.score:.2f}</span>'
+        f'<span class="{score_class} score-value">{score_sign}{primary_score:.2f}</span>'
         f'{_conviction_bar_html(intel.conviction, intel.direction)}'
         f'<span class="horizon-chip">{intel.horizon}</span>'
         f'<span class="trend-chip {trend_class}">{intel.trend}</span>'
         f"</div>"
+        # Composite score breakdown
+        f"{composite_breakdown_html}"
         # Rationale
         f'<div class="rationale-text">{intel.primary_rationale}</div>'
         # Catalyst & exit condition
@@ -556,6 +597,12 @@ class ScenarioAssetIntel:
     catalyst: str = ""
     exit_condition: str = ""
     source_details: dict[str, list[SourceSignalDetail]] = field(default_factory=dict)
+    # Composite score fields
+    composite_score: float = 0.0
+    narrative_score: float = 0.0
+    technical_score: float = 0.0
+    scenario_score: float = 0.0
+    contrarian_bonus: float = 0.0
 
 
 # Known financial source names to extract from consensus_view text
@@ -701,6 +748,15 @@ def build_scenario_intel(report: WeeklyReport) -> list[ScenarioAssetIntel]:
                     SourceSignalDetail(title=sig.title, url=sig.url, snippet=snippet)
                 )
 
+    # Build composite_by_ticker lookup from report.composite_scores
+    # Index by both raw name and resolved Yahoo ticker for cross-format matching
+    composite_by_ticker: dict[str, object] = {}
+    for cs in getattr(report, "composite_scores", None) or []:
+        composite_by_ticker[cs.ticker] = cs
+        resolved = name_to_ticker.get(cs.ticker.lower())
+        if resolved:
+            composite_by_ticker[resolved] = cs
+
     # Build mechanism_id → chain_progress lookup from active_scenarios
     # so we can backfill older reports where scenario_views lack chain_progress
     mech_chain: dict[str, list] = {}
@@ -721,6 +777,10 @@ def build_scenario_intel(report: WeeklyReport) -> list[ScenarioAssetIntel]:
         avg_prob = sv.avg_probability
         if avg_prob == 0.0 and sv.scenarios:
             avg_prob = sum(s.probability for s in sv.scenarios) / len(sv.scenarios)
+
+        # Look up composite score for this ticker (try raw, then resolved)
+        comp = composite_by_ticker.get(sv.ticker) or composite_by_ticker.get(resolved_sv_ticker)
+
         results.append(
             ScenarioAssetIntel(
                 ticker=sv.ticker,
@@ -739,6 +799,11 @@ def build_scenario_intel(report: WeeklyReport) -> list[ScenarioAssetIntel]:
                 catalyst=cons.get("catalyst", ""),
                 exit_condition=cons.get("exit_condition", ""),
                 source_details=ticker_source_details.get(resolved_sv_ticker, {}),
+                composite_score=comp.composite_score if comp else 0.0,
+                narrative_score=comp.narrative_score if comp else 0.0,
+                technical_score=comp.technical_score if comp else 0.0,
+                scenario_score=comp.scenario_score if comp else 0.0,
+                contrarian_bonus=comp.contrarian_bonus if comp else 0.0,
             )
         )
     return results
@@ -833,7 +898,9 @@ def _render_scenario_card(
 ) -> None:
     """Render a single scenario-based asset card."""
     dir_val = intel.net_direction.value
-    score_sign = "+" if intel.net_score > 0 else ""
+    # Use composite_score as primary display; fall back to net_score
+    primary_score = intel.composite_score if intel.composite_score != 0.0 else intel.net_score
+    score_sign = "+" if primary_score > 0 else ""
     score_class = f"score-{dir_val}"
     ac_label = ASSET_LABELS.get(intel.asset_class, intel.asset_class.value)
     display_name = _get_ticker_name(intel.ticker)
@@ -921,6 +988,21 @@ def _render_scenario_card(
     # Source details with links
     source_details_html = _source_details_html(intel.source_details)
 
+    # Component breakdown row (only shown when composite data exists)
+    composite_breakdown_html = ""
+    if intel.composite_score != 0.0:
+        composite_breakdown_html = (
+            f'<div class="composite-breakdown">'
+            f'<span class="comp-label">NAR</span><span class="comp-val">{intel.narrative_score:+.2f}</span>'
+            f'<span class="comp-sep">\u00b7</span>'
+            f'<span class="comp-label">TECH</span><span class="comp-val">{intel.technical_score:+.2f}</span>'
+            f'<span class="comp-sep">\u00b7</span>'
+            f'<span class="comp-label">SCEN</span><span class="comp-val">{intel.scenario_score:+.2f}</span>'
+            f'<span class="comp-sep">\u00b7</span>'
+            f'<span class="comp-label">EDGE</span><span class="comp-val">{intel.contrarian_bonus:+.2f}</span>'
+            f"</div>"
+        )
+
     card_html = (
         f'<div class="asset-card asset-card-{dir_val}">'
         # Header row
@@ -928,11 +1010,13 @@ def _render_scenario_card(
         f'<span class="asset-ticker">{_get_ticker_name(intel.ticker)}</span>'
         f'<span class="asset-class-label">{ac_label}</span>'
         f'<span class="badge badge-{dir_val}">{dir_val}</span>'
-        f'<span class="{score_class} score-value">{score_sign}{intel.net_score:.2f}</span>'
+        f'<span class="{score_class} score-value">{score_sign}{primary_score:.2f}</span>'
         f'<span class="avg-prob-chip">{intel.avg_probability:.0%} avg prob</span>'
         f" {scenario_count_html}"
         f"{conflict_html}"
         f"</div>"
+        # Composite score breakdown
+        f"{composite_breakdown_html}"
         # Scenario sub-blocks
         f"{scenario_blocks}"
         # Consensus vs. edge
@@ -979,15 +1063,18 @@ def _render_scenario_view(
     all_tickers = tuple(sorted({i.ticker for i in filtered}))
     tech_snapshots = _fetch_technicals(all_tickers) if all_tickers else {}
 
-    # Partition by direction
+    # Partition by direction — sort by composite score when available, else net_score
+    def _sort_key(i: ScenarioAssetIntel) -> float:
+        return abs(i.composite_score) if i.composite_score != 0.0 else abs(i.net_score)
+
     bullish = sorted(
         [i for i in filtered if i.net_direction == SentimentDirection.BULLISH],
-        key=lambda i: abs(i.net_score),
+        key=_sort_key,
         reverse=True,
     )
     bearish = sorted(
         [i for i in filtered if i.net_direction == SentimentDirection.BEARISH],
-        key=lambda i: abs(i.net_score),
+        key=_sort_key,
         reverse=True,
     )
     neutral = sorted(
@@ -1018,13 +1105,30 @@ def _render_scenario_view(
         neutral_rows = ""
         for intel in neutral:
             ac_label = ASSET_LABELS.get(intel.asset_class, intel.asset_class.value)
+            display_score = intel.composite_score if intel.composite_score != 0.0 else intel.net_score
+            breakdown_html = ""
+            if intel.composite_score != 0.0:
+                breakdown_html = (
+                    f'<span class="comp-label" style="margin-left:6px;">NAR</span>'
+                    f'<span class="comp-val">{intel.narrative_score:+.2f}</span>'
+                    f'<span class="comp-sep">\u00b7</span>'
+                    f'<span class="comp-label">TECH</span>'
+                    f'<span class="comp-val">{intel.technical_score:+.2f}</span>'
+                    f'<span class="comp-sep">\u00b7</span>'
+                    f'<span class="comp-label">SCEN</span>'
+                    f'<span class="comp-val">{intel.scenario_score:+.2f}</span>'
+                    f'<span class="comp-sep">\u00b7</span>'
+                    f'<span class="comp-label">CONT</span>'
+                    f'<span class="comp-val">{intel.contrarian_bonus:+.2f}</span>'
+                )
             neutral_rows += (
                 f'<div style="display:flex;align-items:center;gap:10px;'
-                f'padding:6px 0;border-bottom:1px solid #1a2332;">'
+                f'padding:6px 0;border-bottom:1px solid #1a2332;flex-wrap:wrap;">'
                 f'<span class="asset-ticker" style="font-size:0.85rem;">{_get_ticker_name(intel.ticker)}</span>'
                 f'<span class="asset-class-label">{ac_label}</span>'
-                f'<span class="score-value score-neutral">{intel.net_score:+.2f}</span>'
+                f'<span class="score-value score-neutral">{display_score:+.2f}</span>'
                 f'<span class="scenario-count-chip">{intel.scenario_count} scenarios</span>'
+                f'{breakdown_html}'
                 f"</div>"
             )
         st.markdown(
@@ -1066,14 +1170,17 @@ def _render_legacy_view(
     all_tickers = tuple(sorted({i.ticker for i in filtered}))
     tech_snapshots = _fetch_technicals(all_tickers) if all_tickers else {}
 
+    def _legacy_sort_key(i: AssetIntel) -> float:
+        return abs(i.composite_score) if i.composite_score != 0.0 else abs(i.score)
+
     bullish = sorted(
         [i for i in filtered if i.direction == SentimentDirection.BULLISH],
-        key=lambda i: abs(i.score),
+        key=_legacy_sort_key,
         reverse=True,
     )
     bearish = sorted(
         [i for i in filtered if i.direction == SentimentDirection.BEARISH],
-        key=lambda i: abs(i.score),
+        key=_legacy_sort_key,
         reverse=True,
     )
     neutral = sorted(
@@ -1104,11 +1211,14 @@ def _render_legacy_view(
         neutral_rows = ""
         for intel in neutral:
             ac_label = ASSET_LABELS.get(intel.asset_class, intel.asset_class.value)
+            display_score = intel.composite_score if intel.composite_score != 0.0 else intel.score
+            score_html = f'<span class="score-value score-neutral">{display_score:+.2f}</span>'
             neutral_rows += (
                 f'<div style="display:flex;align-items:center;gap:10px;'
                 f'padding:6px 0;border-bottom:1px solid #1a2332;">'
                 f'<span class="asset-ticker" style="font-size:0.85rem;">{_get_ticker_name(intel.ticker)}</span>'
                 f'<span class="asset-class-label">{ac_label}</span>'
+                f'{score_html}'
                 f'{_conviction_bar_html(intel.conviction, intel.direction)}'
                 f'<span class="horizon-chip">{intel.horizon}</span>'
                 f'<span class="rationale-text" style="flex:1;">{intel.primary_rationale}</span>'
@@ -1131,6 +1241,247 @@ def _render_legacy_view(
         )
 
 
+def _consensus_meter_html(
+    ticker: str,
+    consensus_scores: list[ConsensusScore],
+    divergence_metrics: list[DivergenceMetrics],
+) -> str:
+    """Render a consensus meter bar with our_score overlaid + divergence badge."""
+    cs = next((c for c in consensus_scores if c.ticker == ticker), None)
+    dm = next((d for d in divergence_metrics if d.ticker == ticker), None)
+    if not cs:
+        return ""
+
+    # Consensus bar position: map -1..+1 to 0..100%
+    consensus_pct = (cs.consensus_score + 1) / 2 * 100
+    our_pct = ((dm.our_score + 1) / 2 * 100) if dm else consensus_pct
+
+    # Divergence badge
+    badge_html = ""
+    if dm:
+        label = dm.divergence_label.upper().replace("_", " ")
+        badge_colors = {
+            "strongly_contrarian": "#ff4444",
+            "contrarian": "#ff8800",
+            "mildly_non_consensus": "#ffcc00",
+            "aligned": "#4a5568",
+        }
+        color = badge_colors.get(dm.divergence_label, "#4a5568")
+        badge_html = (
+            f'<span style="background:{color};color:#fff;padding:2px 8px;'
+            f'border-radius:3px;font-size:0.65rem;font-weight:700;letter-spacing:0.05em;'
+            f'margin-left:8px;">{label}</span>'
+        )
+
+    # Consensus component breakdown (collapsible)
+    components_html = ""
+    if cs.components:
+        comp_items = ""
+        for name, val in cs.components.items():
+            bar_color = "#00d4aa" if val > 0 else "#ff4444" if val < 0 else "#4a5568"
+            bar_width = abs(val) * 50  # max 50px per side
+            display_name = name.replace("_", " ").title()
+            comp_items += (
+                f'<div style="display:flex;align-items:center;gap:6px;padding:2px 0;">'
+                f'<span style="color:#8892a0;font-size:0.65rem;width:80px;text-align:right;">{display_name}</span>'
+                f'<div style="width:100px;height:6px;background:#1a2332;border-radius:3px;position:relative;">'
+                f'<div style="position:absolute;left:50%;top:0;width:1px;height:6px;background:#4a5568;"></div>'
+                f'<div style="position:absolute;{"left" if val >= 0 else "right"}:50%;'
+                f'width:{bar_width}px;height:6px;background:{bar_color};'
+                f'border-radius:{"0 3px 3px 0" if val >= 0 else "3px 0 0 3px"};"></div>'
+                f'</div>'
+                f'<span style="color:#c0c8d0;font-size:0.65rem;width:35px;">{val:+.2f}</span>'
+                f'</div>'
+            )
+        components_html = (
+            f'<details style="margin-top:4px;">'
+            f'<summary style="color:#8892a0;font-size:0.65rem;cursor:pointer;">Components</summary>'
+            f'<div style="padding:4px 0 0 8px;">{comp_items}</div>'
+            f'</details>'
+        )
+
+    # Main meter bar
+    return (
+        f'<div style="margin:6px 0 4px 0;padding:6px 10px;background:#0d1117;border-radius:4px;">'
+        f'<div style="display:flex;align-items:center;gap:8px;margin-bottom:4px;">'
+        f'<span style="color:#8892a0;font-size:0.65rem;font-weight:600;">CONSENSUS</span>'
+        f'<span style="color:#c0c8d0;font-size:0.7rem;">{cs.consensus_score:+.2f}</span>'
+        f'<span style="color:#8892a0;font-size:0.6rem;">({cs.consensus_direction})</span>'
+        f'{badge_html}'
+        f'</div>'
+        # Bar
+        f'<div style="position:relative;height:12px;background:#1a2332;border-radius:6px;overflow:visible;">'
+        # Center line
+        f'<div style="position:absolute;left:50%;top:0;width:1px;height:12px;background:#4a5568;z-index:1;"></div>'
+        # Consensus marker
+        f'<div style="position:absolute;left:{consensus_pct}%;top:-1px;width:3px;height:14px;'
+        f'background:#00d4aa;border-radius:2px;transform:translateX(-50%);z-index:2;" '
+        f'title="Consensus: {cs.consensus_score:+.2f}"></div>'
+        # Our score marker
+        f'<div style="position:absolute;left:{our_pct}%;top:-2px;width:5px;height:16px;'
+        f'background:#ff8800;border-radius:2px;transform:translateX(-50%);z-index:3;" '
+        f'title="Our score: {dm.our_score:+.2f}" ></div>'
+        f'</div>'
+        f'<div style="display:flex;justify-content:space-between;margin-top:2px;">'
+        f'<span style="color:#ff4444;font-size:0.55rem;">BEARISH</span>'
+        f'<span style="color:#00d4aa;font-size:0.55rem;">BULLISH</span>'
+        f'</div>'
+        f'{components_html}'
+        f'</div>'
+    )
+
+
+def _trade_thesis_html(ticker: str, trade_theses: list[TradeThesis]) -> str:
+    """Render structured trade thesis for an asset."""
+    thesis = next((t for t in trade_theses if t.ticker == ticker), None)
+    if not thesis:
+        return ""
+
+    dir_color = "#00d4aa" if thesis.direction == "bullish" else "#ff4444"
+    dir_arrow = "\u25b2" if thesis.direction == "bullish" else "\u25bc"
+
+    # TP/SL levels
+    if thesis.direction == "bullish":
+        tp_price = thesis.entry_price * (1 + thesis.take_profit_pct / 100)
+        sl_price = thesis.entry_price * (1 - abs(thesis.stop_loss_pct) / 100)
+    else:
+        tp_price = thesis.entry_price * (1 - abs(thesis.take_profit_pct) / 100)
+        sl_price = thesis.entry_price * (1 + abs(thesis.stop_loss_pct) / 100)
+
+    outcome_html = ""
+    if thesis.exit_reason:
+        outcome_color = "#00d4aa" if (thesis.pnl_pct or 0) > 0 else "#ff4444"
+        outcome_html = (
+            f'<div style="margin-top:4px;padding:4px 8px;background:#1a2332;border-radius:3px;">'
+            f'<span style="color:{outcome_color};font-size:0.7rem;font-weight:600;">'
+            f'RESOLVED: {thesis.exit_reason.upper()} | P&L: {thesis.pnl_pct:+.1f}%</span>'
+            f'</div>'
+        )
+
+    return (
+        f'<div style="margin:6px 0;padding:8px 10px;background:#0d1117;border:1px solid #1a2332;border-radius:4px;">'
+        f'<div style="display:flex;align-items:center;gap:8px;margin-bottom:4px;">'
+        f'<span style="color:{dir_color};font-size:0.75rem;font-weight:700;">'
+        f'{dir_arrow} TRADE THESIS</span>'
+        f'<span style="color:#c0c8d0;font-size:0.65rem;">R:R {thesis.risk_reward_ratio:.1f}x</span>'
+        f'</div>'
+        f'<div style="display:flex;gap:16px;flex-wrap:wrap;">'
+        f'<div style="color:#8892a0;font-size:0.65rem;">'
+        f'Entry: <span style="color:#c0c8d0;">${thesis.entry_price:,.0f}</span></div>'
+        f'<div style="color:#00d4aa;font-size:0.65rem;">'
+        f'TP: <span style="color:#c0c8d0;">${tp_price:,.0f} ({thesis.take_profit_pct:+.1f}%)</span></div>'
+        f'<div style="color:#ff4444;font-size:0.65rem;">'
+        f'SL: <span style="color:#c0c8d0;">${sl_price:,.0f} (-{thesis.stop_loss_pct:.1f}%)</span></div>'
+        f'<div style="color:#8892a0;font-size:0.65rem;">'
+        f'Max hold: <span style="color:#c0c8d0;">{thesis.max_holding_days}d</span></div>'
+        f'</div>'
+        f'{outcome_html}'
+        f'</div>'
+    )
+
+
+def _render_performance_tab(report: WeeklyReport) -> None:
+    """Render the performance tracking tab with outcome metrics."""
+    from storage.store import get_all_outcomes
+
+    outcomes = get_all_outcomes()
+
+    st.markdown(
+        '<div style="padding:12px 0;">'
+        '<span style="color:#00d4aa;font-size:1rem;font-weight:700;letter-spacing:0.1em;">'
+        'PERFORMANCE TRACKER</span>'
+        '</div>',
+        unsafe_allow_html=True,
+    )
+
+    if not outcomes:
+        st.info("No trade outcomes yet. Outcomes are recorded after trades resolve (TP hit, SL hit, or 7-day expiry).")
+        return
+
+    # Compute metrics
+    total = len(outcomes)
+    wins = sum(1 for o in outcomes if o.get("pnl_pct", 0) > 0)
+    losses = total - wins
+    hit_rate = wins / total * 100 if total > 0 else 0
+    avg_pnl = sum(o.get("pnl_pct", 0) for o in outcomes) / total if total > 0 else 0
+    total_pnl = sum(o.get("pnl_pct", 0) for o in outcomes)
+
+    # Direction accuracy
+    dir_correct = sum(1 for o in outcomes if o.get("direction_correct"))
+    dir_accuracy = dir_correct / total * 100 if total > 0 else 0
+
+    # By exit reason
+    tp_hits = sum(1 for o in outcomes if o.get("exit_reason") == "tp_hit")
+    sl_hits = sum(1 for o in outcomes if o.get("exit_reason") == "sl_hit")
+    expired = sum(1 for o in outcomes if o.get("exit_reason") == "time_expired")
+
+    # Metrics by divergence bucket
+    contrarian_outcomes = [o for o in outcomes if o.get("divergence_label") in ("contrarian", "strongly_contrarian")]
+    aligned_outcomes = [o for o in outcomes if o.get("divergence_label") == "aligned"]
+
+    contrarian_pnl = (sum(o.get("pnl_pct", 0) for o in contrarian_outcomes) / len(contrarian_outcomes)) if contrarian_outcomes else 0
+    aligned_pnl = (sum(o.get("pnl_pct", 0) for o in aligned_outcomes) / len(aligned_outcomes)) if aligned_outcomes else 0
+
+    # Display metrics in columns
+    col1, col2, col3, col4 = st.columns(4)
+    with col1:
+        st.metric("Total Trades", total)
+        st.metric("Wins / Losses", f"{wins} / {losses}")
+    with col2:
+        st.metric("Hit Rate", f"{hit_rate:.0f}%")
+        st.metric("Direction Accuracy", f"{dir_accuracy:.0f}%")
+    with col3:
+        st.metric("Avg P&L", f"{avg_pnl:+.1f}%")
+        st.metric("Total P&L", f"{total_pnl:+.1f}%")
+    with col4:
+        st.metric("TP / SL / Expired", f"{tp_hits} / {sl_hits} / {expired}")
+        st.metric("Avg Days Held", f"{sum(o.get('days_held', 0) for o in outcomes) / total:.1f}")
+
+    # Divergence analysis
+    if contrarian_outcomes or aligned_outcomes:
+        st.markdown("---")
+        st.markdown(
+            '<span style="color:#00d4aa;font-size:0.85rem;font-weight:600;">EDGE VALIDATION</span>',
+            unsafe_allow_html=True,
+        )
+        c1, c2 = st.columns(2)
+        with c1:
+            st.metric(
+                f"Contrarian Avg P&L ({len(contrarian_outcomes)} trades)",
+                f"{contrarian_pnl:+.1f}%",
+            )
+        with c2:
+            st.metric(
+                f"Aligned Avg P&L ({len(aligned_outcomes)} trades)",
+                f"{aligned_pnl:+.1f}%",
+            )
+
+    # Outcome log
+    st.markdown("---")
+    st.markdown(
+        '<span style="color:#8892a0;font-size:0.75rem;font-weight:600;">OUTCOME LOG</span>',
+        unsafe_allow_html=True,
+    )
+    for o in outcomes[:20]:
+        pnl = o.get("pnl_pct", 0)
+        pnl_color = "#00d4aa" if pnl > 0 else "#ff4444"
+        correct = "Y" if o.get("direction_correct") else "N"
+        st.markdown(
+            f'<div style="display:flex;gap:12px;padding:4px 0;border-bottom:1px solid #1a2332;'
+            f'font-size:0.7rem;flex-wrap:wrap;">'
+            f'<span style="color:#8892a0;width:70px;">{o.get("week", "")[:10]}</span>'
+            f'<span style="color:#c0c8d0;width:70px;">{o.get("ticker", "")}</span>'
+            f'<span style="color:#c0c8d0;width:50px;">{o.get("direction", "")}</span>'
+            f'<span style="color:{pnl_color};width:50px;">{pnl:+.1f}%</span>'
+            f'<span style="color:#8892a0;width:70px;">{o.get("exit_reason", "")}</span>'
+            f'<span style="color:#8892a0;width:50px;">dir:{correct}</span>'
+            f'<span style="color:#8892a0;width:60px;">div:{o.get("divergence", 0):+.2f}</span>'
+            f'<span style="color:#8892a0;">{o.get("divergence_label", "")}</span>'
+            f'</div>',
+            unsafe_allow_html=True,
+        )
+
+
 def render_actionable_view(
     report: WeeklyReport | None,
     selected_assets: list[AssetClass],
@@ -1146,8 +1497,32 @@ def render_actionable_view(
     # --- Regime banner ---
     _render_regime_banner(report)
 
-    # --- Branch: scenario-based vs legacy rendering ---
-    if report.scenario_views:
-        _render_scenario_view(report, selected_assets, direction_filter, min_threshold)
-    else:
-        _render_legacy_view(report, selected_assets, direction_filter, min_threshold)
+    # --- Tabs: Main View | Performance ---
+    tab_main, tab_perf = st.tabs(["ASSET CALLS", "PERFORMANCE"])
+
+    with tab_main:
+        # --- Consensus scores summary (if available) ---
+        if report.consensus_scores:
+            cols = st.columns(len(report.consensus_scores))
+            for idx, cs in enumerate(report.consensus_scores):
+                dm = next((d for d in report.divergence_metrics if d.ticker == cs.ticker), None)
+                with cols[idx]:
+                    meter_html = _consensus_meter_html(
+                        cs.ticker, report.consensus_scores, report.divergence_metrics
+                    )
+                    st.markdown(meter_html, unsafe_allow_html=True)
+
+        # --- Trade theses summary ---
+        if report.trade_theses:
+            for tt in report.trade_theses:
+                thesis_html = _trade_thesis_html(tt.ticker, report.trade_theses)
+                st.markdown(thesis_html, unsafe_allow_html=True)
+
+        # --- Branch: scenario-based vs legacy rendering ---
+        if report.scenario_views:
+            _render_scenario_view(report, selected_assets, direction_filter, min_threshold)
+        else:
+            _render_legacy_view(report, selected_assets, direction_filter, min_threshold)
+
+    with tab_perf:
+        _render_performance_tab(report)

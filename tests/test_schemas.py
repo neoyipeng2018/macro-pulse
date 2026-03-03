@@ -5,12 +5,15 @@ from datetime import datetime
 from models.schemas import (
     AssetClass,
     AssetSentiment,
+    ConsensusScore,
+    DivergenceMetrics,
     EconomicRegime,
     Narrative,
-    PriceValidation,
     SentimentDirection,
     Signal,
     SignalSource,
+    TradeOutcome,
+    TradeThesis,
     WeeklyAssetScore,
     WeeklyReport,
 )
@@ -80,18 +83,6 @@ def test_weekly_asset_score():
     assert score.direction == SentimentDirection.BULLISH
 
 
-def test_price_validation():
-    pv = PriceValidation(
-        ticker="Gold",
-        asset_class=AssetClass.METALS,
-        predicted_direction=SentimentDirection.BULLISH,
-        predicted_score=0.65,
-        actual_return_pct=2.3,
-        actual_direction=SentimentDirection.BULLISH,
-        hit=True,
-    )
-    assert pv.hit is True
-
 
 def test_weekly_report():
     report = WeeklyReport(
@@ -125,3 +116,96 @@ def test_signal_source_funding_rates():
 
 def test_signal_source_onchain():
     assert SignalSource.ONCHAIN.value == "onchain"
+
+
+def test_signal_source_consensus():
+    assert SignalSource.OPTIONS.value == "options"
+    assert SignalSource.DERIVATIVES_CONSENSUS.value == "derivatives_consensus"
+    assert SignalSource.ETF_FLOWS.value == "etf_flows"
+
+
+def test_consensus_score():
+    cs = ConsensusScore(
+        ticker="Bitcoin",
+        consensus_score=0.62,
+        consensus_direction="bullish",
+        components={"options_skew": 0.45, "funding_7d": 0.78},
+        options_skew=0.02,
+        funding_rate_7d=0.078,
+        top_trader_ls_ratio=1.22,
+        etf_flow_5d=340.0,
+        put_call_ratio=0.52,
+    )
+    assert cs.consensus_score == 0.62
+    assert cs.consensus_direction == "bullish"
+    assert cs.components["options_skew"] == 0.45
+
+
+def test_divergence_metrics():
+    dm = DivergenceMetrics(
+        ticker="Bitcoin",
+        consensus_score=0.62,
+        our_score=-0.35,
+        divergence=-0.97,
+        abs_divergence=0.97,
+        divergence_label="strongly_contrarian",
+    )
+    assert dm.divergence == -0.97
+    assert dm.divergence_label == "strongly_contrarian"
+
+
+def test_trade_thesis():
+    tt = TradeThesis(
+        ticker="Bitcoin",
+        direction="bearish",
+        entry_price=97500.0,
+        take_profit_pct=6.0,
+        stop_loss_pct=3.0,
+        risk_reward_ratio=2.0,
+        consensus_score_at_entry=0.62,
+        our_score_at_entry=-0.35,
+        divergence_at_entry=-0.97,
+        divergence_label="strongly_contrarian",
+    )
+    assert tt.risk_reward_ratio == 2.0
+    assert tt.exit_price is None
+    assert tt.exit_reason is None
+
+
+def test_trade_outcome():
+    to = TradeOutcome(
+        ticker="Bitcoin",
+        week="2026-03-08",
+        direction="bearish",
+        entry_price=97500.0,
+        entry_date=datetime(2026, 3, 8),
+        exit_price=93600.0,
+        exit_date=datetime(2026, 3, 12),
+        exit_reason="tp_hit",
+        pnl_pct=4.0,
+        direction_correct=True,
+        consensus_score=0.62,
+        our_score=-0.35,
+        divergence=-0.97,
+    )
+    assert to.pnl_pct == 4.0
+    assert to.direction_correct is True
+
+
+def test_weekly_report_with_consensus():
+    report = WeeklyReport(
+        id="rpt002",
+        week_start=datetime(2026, 3, 2),
+        week_end=datetime(2026, 3, 8),
+        regime=EconomicRegime.TRANSITION,
+        signal_count=200,
+        consensus_scores=[
+            ConsensusScore(ticker="Bitcoin", consensus_score=0.5, consensus_direction="bullish"),
+        ],
+        trade_theses=[
+            TradeThesis(ticker="Bitcoin", direction="bullish", entry_price=95000.0,
+                        take_profit_pct=6.0, stop_loss_pct=3.0, risk_reward_ratio=2.0),
+        ],
+    )
+    assert len(report.consensus_scores) == 1
+    assert len(report.trade_theses) == 1

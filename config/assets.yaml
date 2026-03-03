@@ -1,5 +1,5 @@
 # Asset universe for macro-pulse
-# Tickers per asset class for weekly sentiment tracking and price validation
+# Tickers per asset class for weekly sentiment tracking
 
 fx:
   - ticker: DX-Y.NYB

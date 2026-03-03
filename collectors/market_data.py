@@ -101,7 +101,7 @@ class MarketDataCollector(BaseCollector):
         return signals
 
     def get_weekly_returns(self) -> dict[str, float]:
-        """Get weekly returns for all assets — used by price validator."""
+        """Get weekly returns for all assets."""
         tickers_info = self._get_all_tickers()
         all_tickers = [t[0] for t in tickers_info]
         ticker_names = {t[0]: t[1] for t in tickers_info}

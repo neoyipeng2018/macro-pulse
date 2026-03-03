@@ -1,12 +1,17 @@
 """macro-pulse — Weekly Macro Narrative Extraction Dashboard."""
 
+import logging
+import threading
+import time
+
 import streamlit as st
 
 from dashboard.actionable_view import render_actionable_view
 from dashboard.styles import inject_custom_css
-from dashboard.trade_view import render_trade_view
 from models.schemas import AssetClass
 from storage.store import init_db, load_latest_report
+
+logger = logging.getLogger("macro-pulse.app")
 
 st.set_page_config(
     page_title="macro-pulse",
@@ -17,6 +22,54 @@ st.set_page_config(
 
 inject_custom_css()
 init_db()
+
+
+# --- Background trade validator ---
+def _background_validator():
+    """Runs every 6 hours while the app is alive.
+    Checks for trades that can be validated and scores them."""
+    while True:
+        try:
+            from analysis.outcome_tracker import validate_pending_trades
+            from storage.store import (
+                get_pending_trades,
+                save_trade_outcome,
+                update_trade_thesis_outcome,
+            )
+
+            pending = get_pending_trades()
+            if pending:
+                outcomes = validate_pending_trades(pending)
+                for outcome in outcomes:
+                    try:
+                        save_trade_outcome(outcome)
+                        for trade in pending:
+                            if (trade["ticker"] == outcome.ticker
+                                    and trade["entry_date"] == outcome.entry_date.isoformat()):
+                                update_trade_thesis_outcome(
+                                    trade_id=trade["id"],
+                                    exit_price=outcome.exit_price,
+                                    exit_date=outcome.exit_date.isoformat(),
+                                    exit_reason=outcome.exit_reason,
+                                    pnl_pct=outcome.pnl_pct,
+                                    days_held=outcome.days_held,
+                                    direction_correct=outcome.direction_correct,
+                                )
+                                break
+                    except Exception as e:
+                        logger.error("Background validator save error: %s", e)
+                if outcomes:
+                    logger.info("Background validator resolved %d trades", len(outcomes))
+        except Exception as e:
+            logger.error("Background validation failed: %s", e)
+        time.sleep(6 * 3600)  # check every 6 hours
+
+
+if "validator_started" not in st.session_state:
+    thread = threading.Thread(target=_background_validator, daemon=True)
+    thread.start()
+    st.session_state.validator_started = True
+
 
 # --- Sidebar ---
 ASSET_LABELS = {
@@ -113,11 +166,5 @@ st.markdown(
     unsafe_allow_html=True,
 )
 
-# --- Main content tabs ---
-tab_intel, tab_trades = st.tabs(["Intelligence", "Trading"])
-
-with tab_intel:
-    render_actionable_view(report, selected_assets, direction_filter, min_threshold)
-
-with tab_trades:
-    render_trade_view(report)
+# --- Main content ---
+render_actionable_view(report, selected_assets, direction_filter, min_threshold)

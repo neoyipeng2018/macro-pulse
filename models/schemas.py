@@ -34,6 +34,9 @@ class SignalSource(str, Enum):
     SPREADS = "spreads"
     FUNDING_RATES = "funding_rates"
     ONCHAIN = "onchain"
+    OPTIONS = "options"
+    DERIVATIVES_CONSENSUS = "derivatives_consensus"
+    ETF_FLOWS = "etf_flows"
 
 
 class EconomicRegime(str, Enum):
@@ -113,18 +116,6 @@ class WeeklyAssetScore(BaseModel):
     conviction: float = 0.0      # 0-1, average conviction across narratives
     narrative_count: int = 0     # how many narratives reference this asset
     top_narrative: str = ""      # title of highest-conviction narrative
-
-
-class PriceValidation(BaseModel):
-    """Comparison of predicted sentiment vs actual weekly return."""
-
-    ticker: str
-    asset_class: AssetClass
-    predicted_direction: SentimentDirection
-    predicted_score: float = 0.0
-    actual_return_pct: float = 0.0
-    actual_direction: SentimentDirection = SentimentDirection.NEUTRAL
-    hit: bool = False            # did predicted direction match actual?
 
 
 class ChainStep(BaseModel):
@@ -234,86 +225,100 @@ class ScenarioAssetView(BaseModel):
 
 
 class CompositeAssetScore(BaseModel):
-    """Composite score combining narrative, technical, scenario, and contrarian inputs."""
+    """Composite score: 50% narrative + 25% technical + 25% scenario + flat contrarian nudge.
+
+    Clamped to [-1.0, +1.0].
+    """
 
     ticker: str
     asset_class: AssetClass
     direction: SentimentDirection
-    composite_score: float = 0.0       # -1.5 to +1.5 (contrarian bonus extends range)
-    confidence: float = 0.0            # 0-1
-    narrative_score: float = 0.0       # raw narrative ±1.0
-    technical_score: float = 0.0       # technical bias ±1.0
-    scenario_score: float = 0.0        # probability-weighted scenario ±1.0
-    contrarian_bonus: float = 0.0      # +0.3 contrarian, -0.1 aligned
+    composite_score: float = 0.0       # -1.0 to +1.0 (clamped)
+    confidence: float = 0.0            # deprecated, kept for backwards compat with stored reports
+    narrative_score: float = 0.0       # raw narrative ±1.0 (50% weight)
+    technical_score: float = 0.0       # technical bias ±1.0 (25% weight)
+    scenario_score: float = 0.0        # probability-weighted scenario ±1.0 (25% weight)
+    contrarian_bonus: float = 0.0      # flat nudge: +0.1 contrarian, -0.05 aligned
     narrative_count: int = 0
     top_narrative: str = ""
     conflict_flag: bool = False
     edge_type: str = "aligned"
 
 
-class TradeParams(BaseModel):
-    """Structured trade parameters parsed from LLM exit conditions."""
+class ConsensusScore(BaseModel):
+    """Quantitative consensus measurement for an asset from market positioning data."""
+
+    ticker: str                                    # "Bitcoin" or "Ethereum"
+    consensus_score: float = 0.0                   # -1.0 to +1.0
+    consensus_direction: str = "neutral"           # bullish / bearish / neutral (±0.15 threshold)
+    components: dict[str, float] = Field(default_factory=dict)  # breakdown by source (each -1 to +1)
+    options_skew: float = 0.0                      # raw 25-delta risk reversal
+    funding_rate_7d: float = 0.0                   # 7-day accumulated funding %
+    top_trader_ls_ratio: float = 0.0               # raw ratio
+    etf_flow_5d: float = 0.0                       # USD millions, 5-day rolling
+    put_call_ratio: float = 0.0                    # raw PCR
+    max_pain_distance_pct: float = 0.0             # (current_price - max_pain) / current_price
+    oi_change_7d_pct: float = 0.0                  # % OI change over 7 days
+    data_timestamp: datetime = Field(default_factory=datetime.utcnow)
+
+
+class DivergenceMetrics(BaseModel):
+    """Measures how non-consensus our view is for an asset."""
 
     ticker: str
-    direction: str = "long"             # "long" or "short"
-    entry_price: float = 0.0            # current market price at signal time
-    stop_loss_pct: float = -5.0         # e.g., -5.0
-    take_profit_pct: float = 8.0        # e.g., +8.0
-    intermediate_tp_pct: float | None = None  # e.g., +4.0 (partial exit)
-    risk_reward: float = 1.6            # e.g., 1.6
-    invalidation_triggers: list[str] = Field(default_factory=list)
-    horizon_days: int = 7
+    consensus_score: float = 0.0       # from ConsensusScore
+    our_score: float = 0.0             # from composite scoring pipeline
+    divergence: float = 0.0            # our_score - consensus_score
+    abs_divergence: float = 0.0        # abs(divergence)
+    divergence_label: str = "aligned"  # strongly_contrarian / contrarian / mildly_non_consensus / aligned
+    consensus_direction: str = "neutral"
+    our_direction: str = "neutral"
 
 
-class Trade(BaseModel):
-    """A fully specified actionable trade with sizing and risk parameters."""
+class TradeThesis(BaseModel):
+    """Structured trade with entry/exit levels and risk/reward."""
 
-    id: str = Field(default_factory=lambda: "")
-    report_id: str = ""
     ticker: str
-    direction: str = "LONG"             # LONG / SHORT
-    composite_score: float = 0.0
-    narrative_score: float = 0.0      # component: narrative sentiment ±1.0
-    technical_score: float = 0.0      # component: technical bias ±1.0
-    scenario_score: float = 0.0       # component: probability-weighted scenario ±1.0
-    contrarian_bonus: float = 0.0     # component: +0.3 contrarian, -0.1 aligned
-    calibration_mult: float = 1.0     # calibration multiplier applied
+    direction: str                           # bullish / bearish
     entry_price: float = 0.0
-    position_usd: float = 0.0
-    position_size: float = 0.0          # in asset units (e.g., 0.029 BTC)
-    portfolio_pct: float = 0.0          # % of capital
-    stop_loss_price: float = 0.0
-    take_profit_price: float = 0.0
-    intermediate_tp_price: float | None = None
-    risk_reward: float = 0.0
-    risk_usd: float = 0.0              # max loss in USD
-    reward_usd: float = 0.0            # max gain in USD
-    horizon_days: int = 7
-    confidence: float = 0.0
-    top_narrative: str = ""
-    invalidation_triggers: list[str] = Field(default_factory=list)
-    conflict_flag: bool = False
-    regime: str = ""
-    status: str = "proposed"            # proposed/open/partial_tp/closed/stopped/expired
+    entry_date: datetime = Field(default_factory=datetime.utcnow)
+    take_profit_pct: float = 0.0             # e.g., +6%
+    stop_loss_pct: float = 0.0               # e.g., -3%
+    risk_reward_ratio: float = 0.0           # computed: TP / SL
+    max_holding_days: int = 7                # hard 1-week cap
+    consensus_score_at_entry: float = 0.0
+    our_score_at_entry: float = 0.0
+    divergence_at_entry: float = 0.0
+    divergence_label: str = "aligned"
+    composite_score: float = 0.0
+    rationale: str = ""
+    # Outcome fields (filled later)
     exit_price: float | None = None
-    exit_time: datetime | None = None
-    exit_reason: str | None = None      # tp_hit/stop_hit/manual/expired/invalidated
-    pnl_usd: float | None = None
+    exit_date: datetime | None = None
+    exit_reason: str | None = None           # tp_hit / sl_hit / time_expired / invalidated
     pnl_pct: float | None = None
-    notes: str = ""
-    created_at: datetime = Field(default_factory=datetime.utcnow)
+    days_held: int | None = None
+    direction_correct: bool | None = None
 
 
-class PortfolioSnapshot(BaseModel):
-    """Point-in-time snapshot of portfolio state."""
+class TradeOutcome(BaseModel):
+    """Realized outcome for a trade thesis."""
 
-    id: str = Field(default_factory=lambda: "")
-    timestamp: datetime = Field(default_factory=datetime.utcnow)
-    total_capital: float = 0.0
-    deployed_capital: float = 0.0
-    open_positions: int = 0
-    unrealized_pnl: float = 0.0
-    realized_pnl_cumulative: float = 0.0
+    ticker: str
+    week: str                                # week start date ISO string
+    direction: str
+    entry_price: float
+    entry_date: datetime
+    exit_price: float
+    exit_date: datetime
+    exit_reason: str                         # tp_hit / sl_hit / time_expired
+    pnl_pct: float
+    direction_correct: bool
+    consensus_score: float = 0.0
+    our_score: float = 0.0
+    divergence: float = 0.0
+    divergence_label: str = "aligned"
+    days_held: int = 0
 
 
 class WeeklyReport(BaseModel):
@@ -327,10 +332,11 @@ class WeeklyReport(BaseModel):
     regime_rationale: str = ""
     narratives: list[Narrative] = Field(default_factory=list)
     asset_scores: list[WeeklyAssetScore] = Field(default_factory=list)
-    price_validations: list[PriceValidation] = Field(default_factory=list)
     signal_count: int = 0
     summary: str = ""            # AI-generated executive summary
     active_scenarios: list[ActiveScenario] = Field(default_factory=list)
     scenario_views: list[ScenarioAssetView] = Field(default_factory=list)
     composite_scores: list[CompositeAssetScore] = Field(default_factory=list)
-    trades: list[Trade] = Field(default_factory=list)
+    consensus_scores: list[ConsensusScore] = Field(default_factory=list)
+    divergence_metrics: list[DivergenceMetrics] = Field(default_factory=list)
+    trade_theses: list[TradeThesis] = Field(default_factory=list)

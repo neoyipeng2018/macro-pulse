@@ -11,15 +11,19 @@ from models.schemas import (
     AssetScenarioEntry,
     AssetSentiment,
     ChainStepProgress,
+    CompositeAssetScore,
+    ConsensusScore,
+    DivergenceMetrics,
     EconomicRegime,
     EdgeType,
     Narrative,
-    PriceValidation,
     ScenarioAssetImpact,
     ScenarioAssetView,
     SentimentDirection,
     Signal,
     SignalSource,
+    TradeOutcome,
+    TradeThesis,
     WeeklyAssetScore,
     WeeklyReport,
 )
@@ -100,19 +104,6 @@ def init_db() -> None:
             FOREIGN KEY (report_id) REFERENCES weekly_reports(id)
         );
 
-        CREATE TABLE IF NOT EXISTS price_validations (
-            id INTEGER PRIMARY KEY AUTOINCREMENT,
-            report_id TEXT NOT NULL,
-            ticker TEXT NOT NULL,
-            asset_class TEXT NOT NULL,
-            predicted_direction TEXT NOT NULL,
-            predicted_score REAL NOT NULL,
-            actual_return_pct REAL NOT NULL,
-            actual_direction TEXT NOT NULL,
-            hit INTEGER NOT NULL DEFAULT 0,
-            FOREIGN KEY (report_id) REFERENCES weekly_reports(id)
-        );
-
         CREATE TABLE IF NOT EXISTS active_scenarios (
             id TEXT PRIMARY KEY,
             report_id TEXT NOT NULL,
@@ -148,37 +139,86 @@ def init_db() -> None:
             FOREIGN KEY (report_id) REFERENCES weekly_reports(id)
         );
 
-        CREATE TABLE IF NOT EXISTS trades (
-            id TEXT PRIMARY KEY,
-            report_id TEXT,
+        CREATE TABLE IF NOT EXISTS composite_scores (
+            id INTEGER PRIMARY KEY AUTOINCREMENT,
+            report_id TEXT NOT NULL,
             ticker TEXT NOT NULL,
+            asset_class TEXT NOT NULL,
             direction TEXT NOT NULL,
-            entry_price REAL,
-            entry_time TEXT,
-            position_usd REAL,
-            position_size REAL,
-            stop_loss_price REAL,
-            take_profit_price REAL,
-            intermediate_tp_price REAL,
-            risk_reward REAL,
-            composite_score REAL,
-            status TEXT DEFAULT 'proposed',
-            exit_price REAL,
-            exit_time TEXT,
-            exit_reason TEXT,
-            pnl_usd REAL,
-            pnl_pct REAL,
-            notes TEXT
+            composite_score REAL NOT NULL DEFAULT 0.0,
+            confidence REAL NOT NULL DEFAULT 0.0,
+            narrative_score REAL NOT NULL DEFAULT 0.0,
+            technical_score REAL NOT NULL DEFAULT 0.0,
+            scenario_score REAL NOT NULL DEFAULT 0.0,
+            contrarian_bonus REAL NOT NULL DEFAULT 0.0,
+            narrative_count INTEGER NOT NULL DEFAULT 0,
+            top_narrative TEXT,
+            conflict_flag INTEGER NOT NULL DEFAULT 0,
+            edge_type TEXT NOT NULL DEFAULT 'aligned',
+            FOREIGN KEY (report_id) REFERENCES weekly_reports(id)
         );
 
-        CREATE TABLE IF NOT EXISTS portfolio_snapshots (
-            id TEXT PRIMARY KEY,
-            timestamp TEXT,
-            total_capital REAL,
-            deployed_capital REAL,
-            open_positions INTEGER,
-            unrealized_pnl REAL,
-            realized_pnl_cumulative REAL
+        CREATE TABLE IF NOT EXISTS consensus_scores (
+            id INTEGER PRIMARY KEY AUTOINCREMENT,
+            report_id TEXT NOT NULL,
+            ticker TEXT NOT NULL,
+            consensus_score REAL NOT NULL DEFAULT 0.0,
+            consensus_direction TEXT NOT NULL DEFAULT 'neutral',
+            components TEXT NOT NULL DEFAULT '{}',
+            options_skew REAL NOT NULL DEFAULT 0.0,
+            funding_rate_7d REAL NOT NULL DEFAULT 0.0,
+            top_trader_ls_ratio REAL NOT NULL DEFAULT 0.0,
+            etf_flow_5d REAL NOT NULL DEFAULT 0.0,
+            put_call_ratio REAL NOT NULL DEFAULT 0.0,
+            max_pain_distance_pct REAL NOT NULL DEFAULT 0.0,
+            oi_change_7d_pct REAL NOT NULL DEFAULT 0.0,
+            data_timestamp TEXT NOT NULL,
+            FOREIGN KEY (report_id) REFERENCES weekly_reports(id)
+        );
+
+        CREATE TABLE IF NOT EXISTS trade_theses (
+            id INTEGER PRIMARY KEY AUTOINCREMENT,
+            report_id TEXT NOT NULL,
+            ticker TEXT NOT NULL,
+            direction TEXT NOT NULL,
+            entry_price REAL NOT NULL DEFAULT 0.0,
+            entry_date TEXT NOT NULL,
+            take_profit_pct REAL NOT NULL DEFAULT 0.0,
+            stop_loss_pct REAL NOT NULL DEFAULT 0.0,
+            risk_reward_ratio REAL NOT NULL DEFAULT 0.0,
+            max_holding_days INTEGER NOT NULL DEFAULT 7,
+            consensus_score_at_entry REAL NOT NULL DEFAULT 0.0,
+            our_score_at_entry REAL NOT NULL DEFAULT 0.0,
+            divergence_at_entry REAL NOT NULL DEFAULT 0.0,
+            divergence_label TEXT NOT NULL DEFAULT 'aligned',
+            composite_score REAL NOT NULL DEFAULT 0.0,
+            rationale TEXT NOT NULL DEFAULT '',
+            exit_price REAL,
+            exit_date TEXT,
+            exit_reason TEXT,
+            pnl_pct REAL,
+            days_held INTEGER,
+            direction_correct INTEGER,
+            FOREIGN KEY (report_id) REFERENCES weekly_reports(id)
+        );
+
+        CREATE TABLE IF NOT EXISTS trade_outcomes (
+            id INTEGER PRIMARY KEY AUTOINCREMENT,
+            ticker TEXT NOT NULL,
+            week TEXT NOT NULL,
+            direction TEXT NOT NULL,
+            entry_price REAL NOT NULL,
+            entry_date TEXT NOT NULL,
+            exit_price REAL NOT NULL,
+            exit_date TEXT NOT NULL,
+            exit_reason TEXT NOT NULL,
+            pnl_pct REAL NOT NULL,
+            direction_correct INTEGER NOT NULL,
+            consensus_score REAL NOT NULL DEFAULT 0.0,
+            our_score REAL NOT NULL DEFAULT 0.0,
+            divergence REAL NOT NULL DEFAULT 0.0,
+            divergence_label TEXT NOT NULL DEFAULT 'aligned',
+            days_held INTEGER NOT NULL DEFAULT 0
         );
     """
     )
@@ -282,25 +322,6 @@ def save_report(report: WeeklyReport) -> None:
             ),
         )
 
-    # Save price validations
-    for pv in report.price_validations:
-        conn.execute(
-            """INSERT INTO price_validations
-            (report_id, ticker, asset_class, predicted_direction, predicted_score,
-             actual_return_pct, actual_direction, hit)
-            VALUES (?, ?, ?, ?, ?, ?, ?, ?)""",
-            (
-                report.id,
-                pv.ticker,
-                pv.asset_class.value,
-                pv.predicted_direction.value,
-                pv.predicted_score,
-                pv.actual_return_pct,
-                pv.actual_direction.value,
-                1 if pv.hit else 0,
-            ),
-        )
-
     # Save active scenarios
     for sc in report.active_scenarios:
         conn.execute(
@@ -350,6 +371,87 @@ def save_report(report: WeeklyReport) -> None:
                 sv.dominant_scenario,
                 sv.scenario_count,
                 1 if sv.conflict_flag else 0,
+            ),
+        )
+
+    # Save composite scores
+    for cs in report.composite_scores:
+        conn.execute(
+            """INSERT INTO composite_scores
+            (report_id, ticker, asset_class, direction,
+             composite_score, confidence, narrative_score,
+             technical_score, scenario_score, contrarian_bonus,
+             narrative_count, top_narrative, conflict_flag, edge_type)
+            VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)""",
+            (
+                report.id,
+                cs.ticker,
+                cs.asset_class.value,
+                cs.direction.value,
+                cs.composite_score,
+                cs.confidence,
+                cs.narrative_score,
+                cs.technical_score,
+                cs.scenario_score,
+                cs.contrarian_bonus,
+                cs.narrative_count,
+                cs.top_narrative,
+                1 if cs.conflict_flag else 0,
+                cs.edge_type,
+            ),
+        )
+
+    # Save consensus scores
+    for cns in report.consensus_scores:
+        conn.execute(
+            """INSERT INTO consensus_scores
+            (report_id, ticker, consensus_score, consensus_direction,
+             components, options_skew, funding_rate_7d, top_trader_ls_ratio,
+             etf_flow_5d, put_call_ratio, max_pain_distance_pct,
+             oi_change_7d_pct, data_timestamp)
+            VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)""",
+            (
+                report.id,
+                cns.ticker,
+                cns.consensus_score,
+                cns.consensus_direction,
+                json.dumps(cns.components),
+                cns.options_skew,
+                cns.funding_rate_7d,
+                cns.top_trader_ls_ratio,
+                cns.etf_flow_5d,
+                cns.put_call_ratio,
+                cns.max_pain_distance_pct,
+                cns.oi_change_7d_pct,
+                cns.data_timestamp.isoformat(),
+            ),
+        )
+
+    # Save trade theses
+    for tt in report.trade_theses:
+        conn.execute(
+            """INSERT INTO trade_theses
+            (report_id, ticker, direction, entry_price, entry_date,
+             take_profit_pct, stop_loss_pct, risk_reward_ratio,
+             max_holding_days, consensus_score_at_entry, our_score_at_entry,
+             divergence_at_entry, divergence_label, composite_score, rationale)
+            VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)""",
+            (
+                report.id,
+                tt.ticker,
+                tt.direction,
+                tt.entry_price,
+                tt.entry_date.isoformat(),
+                tt.take_profit_pct,
+                tt.stop_loss_pct,
+                tt.risk_reward_ratio,
+                tt.max_holding_days,
+                tt.consensus_score_at_entry,
+                tt.our_score_at_entry,
+                tt.divergence_at_entry,
+                tt.divergence_label,
+                tt.composite_score,
+                tt.rationale,
             ),
         )
 
@@ -483,25 +585,6 @@ def _load_report_from_row(conn: sqlite3.Connection, row: sqlite3.Row) -> WeeklyR
         for sr in score_rows
     ]
 
-    # Load price validations
-    pv_rows = conn.execute(
-        "SELECT * FROM price_validations WHERE report_id = ?",
-        (report_id,),
-    ).fetchall()
-
-    price_validations = [
-        PriceValidation(
-            ticker=pv["ticker"],
-            asset_class=AssetClass(pv["asset_class"]),
-            predicted_direction=SentimentDirection(pv["predicted_direction"]),
-            predicted_score=pv["predicted_score"],
-            actual_return_pct=pv["actual_return_pct"],
-            actual_direction=SentimentDirection(pv["actual_direction"]),
-            hit=bool(pv["hit"]),
-        )
-        for pv in pv_rows
-    ]
-
     # Load active scenarios
     active_scenarios = []
     try:
@@ -582,6 +665,127 @@ def _load_report_from_row(conn: sqlite3.Connection, row: sqlite3.Row) -> WeeklyR
         # Table may not exist in older databases
         pass
 
+    # Load composite scores
+    composite_scores = []
+    try:
+        cs_rows = conn.execute(
+            "SELECT * FROM composite_scores WHERE report_id = ? ORDER BY composite_score DESC",
+            (report_id,),
+        ).fetchall()
+        for csr in cs_rows:
+            composite_scores.append(
+                CompositeAssetScore(
+                    ticker=csr["ticker"],
+                    asset_class=AssetClass(csr["asset_class"]),
+                    direction=SentimentDirection(csr["direction"]),
+                    composite_score=csr["composite_score"],
+                    confidence=csr["confidence"],
+                    narrative_score=csr["narrative_score"],
+                    technical_score=csr["technical_score"],
+                    scenario_score=csr["scenario_score"],
+                    contrarian_bonus=csr["contrarian_bonus"],
+                    narrative_count=csr["narrative_count"],
+                    top_narrative=csr["top_narrative"] or "",
+                    conflict_flag=bool(csr["conflict_flag"]),
+                    edge_type=csr["edge_type"] or "aligned",
+                )
+            )
+    except sqlite3.OperationalError:
+        # Table may not exist in older databases
+        pass
+
+    # Load consensus scores
+    consensus_scores_list = []
+    try:
+        cns_rows = conn.execute(
+            "SELECT * FROM consensus_scores WHERE report_id = ?",
+            (report_id,),
+        ).fetchall()
+        for cr in cns_rows:
+            consensus_scores_list.append(
+                ConsensusScore(
+                    ticker=cr["ticker"],
+                    consensus_score=cr["consensus_score"],
+                    consensus_direction=cr["consensus_direction"],
+                    components=json.loads(cr["components"]) if cr["components"] else {},
+                    options_skew=cr["options_skew"],
+                    funding_rate_7d=cr["funding_rate_7d"],
+                    top_trader_ls_ratio=cr["top_trader_ls_ratio"],
+                    etf_flow_5d=cr["etf_flow_5d"],
+                    put_call_ratio=cr["put_call_ratio"],
+                    max_pain_distance_pct=cr["max_pain_distance_pct"],
+                    oi_change_7d_pct=cr["oi_change_7d_pct"],
+                    data_timestamp=datetime.fromisoformat(cr["data_timestamp"]),
+                )
+            )
+    except sqlite3.OperationalError:
+        pass
+
+    # Load trade theses
+    trade_theses = []
+    try:
+        tt_rows = conn.execute(
+            "SELECT * FROM trade_theses WHERE report_id = ?",
+            (report_id,),
+        ).fetchall()
+        for tr in tt_rows:
+            trade_theses.append(
+                TradeThesis(
+                    ticker=tr["ticker"],
+                    direction=tr["direction"],
+                    entry_price=tr["entry_price"],
+                    entry_date=datetime.fromisoformat(tr["entry_date"]),
+                    take_profit_pct=tr["take_profit_pct"],
+                    stop_loss_pct=tr["stop_loss_pct"],
+                    risk_reward_ratio=tr["risk_reward_ratio"],
+                    max_holding_days=tr["max_holding_days"],
+                    consensus_score_at_entry=tr["consensus_score_at_entry"],
+                    our_score_at_entry=tr["our_score_at_entry"],
+                    divergence_at_entry=tr["divergence_at_entry"],
+                    divergence_label=tr["divergence_label"],
+                    composite_score=tr["composite_score"],
+                    rationale=tr["rationale"],
+                    exit_price=tr["exit_price"],
+                    exit_date=datetime.fromisoformat(tr["exit_date"]) if tr["exit_date"] else None,
+                    exit_reason=tr["exit_reason"],
+                    pnl_pct=tr["pnl_pct"],
+                    days_held=tr["days_held"],
+                    direction_correct=bool(tr["direction_correct"]) if tr["direction_correct"] is not None else None,
+                )
+            )
+    except sqlite3.OperationalError:
+        pass
+
+    # Build divergence metrics from consensus + composite scores
+    divergence_metrics = []
+    if consensus_scores_list and composite_scores:
+        composite_map = {c.ticker: c.composite_score for c in composite_scores}
+        for cns in consensus_scores_list:
+            our = composite_map.get(cns.ticker, 0.0)
+            div = our - cns.consensus_score
+            abs_div = abs(div)
+            if abs_div > 1.0:
+                label = "strongly_contrarian"
+            elif abs_div > 0.5:
+                label = "contrarian"
+            elif abs_div > 0.2:
+                label = "mildly_non_consensus"
+            else:
+                label = "aligned"
+            our_dir = "bullish" if our > 0.1 else ("bearish" if our < -0.1 else "neutral")
+            divergence_metrics.append(
+                DivergenceMetrics(
+                    ticker=cns.ticker,
+                    consensus_score=cns.consensus_score,
+                    our_score=our,
+                    divergence=round(div, 4),
+                    abs_divergence=round(abs_div, 4),
+                    divergence_label=label,
+                    consensus_direction=cns.consensus_direction,
+                    our_direction=our_dir,
+                )
+            )
+
     return WeeklyReport(
         id=report_id,
         week_start=datetime.fromisoformat(row["week_start"]),
@@ -591,12 +795,108 @@ def _load_report_from_row(conn: sqlite3.Connection, row: sqlite3.Row) -> WeeklyR
         regime_rationale=row["regime_rationale"],
         narratives=narratives,
         asset_scores=asset_scores,
-        price_validations=price_validations,
         signal_count=row["signal_count"],
         summary=row["summary"],
         active_scenarios=active_scenarios,
         scenario_views=scenario_views,
+        composite_scores=composite_scores,
+        consensus_scores=consensus_scores_list,
+        divergence_metrics=divergence_metrics,
+        trade_theses=trade_theses,
     )
+
+
+def get_pending_trades() -> list[dict]:
+    """Get all trade theses that haven't been resolved yet (no exit_price)."""
+    conn = _get_conn()
+    try:
+        rows = conn.execute(
+            """SELECT tt.*, wr.week_start as week FROM trade_theses tt
+            JOIN weekly_reports wr ON tt.report_id = wr.id
+            WHERE tt.exit_price IS NULL
+            ORDER BY tt.entry_date ASC"""
+        ).fetchall()
+        return [dict(r) for r in rows]
+    except sqlite3.OperationalError:
+        return []
+    finally:
+        conn.close()
+
+
+def save_trade_outcome(outcome: TradeOutcome) -> None:
+    """Save a resolved trade outcome."""
+    conn = _get_conn()
+    conn.execute(
+        """INSERT INTO trade_outcomes
+        (ticker, week, direction, entry_price, entry_date,
+         exit_price, exit_date, exit_reason, pnl_pct,
+         direction_correct, consensus_score, our_score,
+         divergence, divergence_label, days_held)
+        VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)""",
+        (
+            outcome.ticker,
+            outcome.week,
+            outcome.direction,
+            outcome.entry_price,
+            outcome.entry_date.isoformat(),
+            outcome.exit_price,
+            outcome.exit_date.isoformat(),
+            outcome.exit_reason,
+            outcome.pnl_pct,
+            1 if outcome.direction_correct else 0,
+            outcome.consensus_score,
+            outcome.our_score,
+            outcome.divergence,
+            outcome.divergence_label,
+            outcome.days_held,
+        ),
+    )
+    conn.commit()
+    conn.close()
+
+
+def update_trade_thesis_outcome(
+    trade_id: int,
+    exit_price: float,
+    exit_date: str,
+    exit_reason: str,
+    pnl_pct: float,
+    days_held: int,
+    direction_correct: bool,
+) -> None:
+    """Update a trade thesis with its outcome."""
+    conn = _get_conn()
+    conn.execute(
+        """UPDATE trade_theses SET
+        exit_price = ?, exit_date = ?, exit_reason = ?,
+        pnl_pct = ?, days_held = ?, direction_correct = ?
+        WHERE id = ?""",
+        (
+            exit_price,
+            exit_date,
+            exit_reason,
+            pnl_pct,
+            days_held,
+            1 if direction_correct else 0,
+            trade_id,
+        ),
+    )
+    conn.commit()
+    conn.close()
+
+
+def get_all_outcomes() -> list[dict]:
+    """Get all trade outcomes for performance tracking."""
+    conn = _get_conn()
+    try:
+        rows = conn.execute(
+            "SELECT * FROM trade_outcomes ORDER BY exit_date DESC"
+        ).fetchall()
+        return [dict(r) for r in rows]
+    except sqlite3.OperationalError:
+        return []
+    finally:
+        conn.close()
 
 
 def get_score_history(ticker: str | None = None, limit: int = 12) -> list[dict]:

@@ -119,6 +119,8 @@ signals agree with consensus, say so. The value is in identifying WHERE we diver
             "human",
             """Today's date: {run_date}
 
+{consensus_block}
+
 Analyze these signals and extract macro narratives with per-asset directional sentiment:
 
 {signals}

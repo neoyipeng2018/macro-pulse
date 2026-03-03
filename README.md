@@ -16,7 +16,6 @@ The weekly pipeline (`run_weekly.py`) executes 7 steps:
 4. **Match transmission mechanisms** — LLM matches signals to the 18-mechanism catalog, producing active scenarios with chain progress and probability estimates
 5. **Classify economic regime** — LLM classifies one of 6 regimes (risk-on, risk-off, reflation, stagflation, goldilocks, transition) with confidence
 6. **Aggregate asset scores** — deterministic weighted aggregation (conviction x narrative confidence x trend multiplier)
-7. **Price validation** — compares last week's directional predictions vs actual returns from yfinance (hit rate by asset class)
 
 A final LLM call generates a 3-5 sentence executive summary. Reports are persisted to SQLite and JSON.
 
@@ -269,7 +268,6 @@ macro-pulse/
 ├── analysis/
 │   ├── sentiment_aggregator.py     # Weighted score aggregation
 │   ├── scenario_aggregator.py      # Probability-weighted scenario scoring
-│   ├── price_validator.py          # Prediction vs actual return comparison
 │   └── technicals.py              # RSI, MACD, SMA calculations
 │
 ├── dashboard/

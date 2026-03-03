@@ -69,9 +69,9 @@ def aggregate_scenarios(
             net_score += entry.probability * entry.magnitude * direction_sign
 
         # Determine net direction
-        if net_score > 0.05:
+        if net_score > 0.1:
             net_direction = SentimentDirection.BULLISH
-        elif net_score < -0.05:
+        elif net_score < -0.1:
             net_direction = SentimentDirection.BEARISH
         else:
             net_direction = SentimentDirection.NEUTRAL
