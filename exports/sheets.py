@@ -1,16 +1,41 @@
 """Export WeeklyReport data to Google Sheets."""
 
 import logging
+from pathlib import Path
 
 import gspread
 
-from models.schemas import WeeklyReport
+from models.schemas import TradeOutcome, WeeklyReport
 
 logger = logging.getLogger("macro-pulse.sheets")
 
 
+def _get_gspread_client(creds_file: str) -> gspread.Client:
+    """Return an authenticated gspread client.
+
+    Tries the local credentials file first. If the file doesn't exist
+    (e.g. on Streamlit Cloud), falls back to ``st.secrets["gcp_service_account"]``
+    which should contain the service-account JSON as a TOML section.
+    """
+    if creds_file and Path(creds_file).exists():
+        return gspread.service_account(filename=creds_file)
+
+    # Streamlit Cloud: credentials stored in st.secrets
+    try:
+        import streamlit as st
+        creds = dict(st.secrets["gcp_service_account"])
+        return gspread.service_account_from_dict(creds)
+    except Exception:
+        pass
+
+    raise RuntimeError(
+        "No Google Sheets credentials found. Set GOOGLE_SHEETS_CREDENTIALS_FILE "
+        "or add a [gcp_service_account] section in Streamlit secrets."
+    )
+
+
 def export_to_sheets(report: WeeklyReport) -> None:
-    """Append report data to 4 worksheets in the configured Google Sheet.
+    """Append report data to worksheets in the configured Google Sheet.
 
     Creates worksheets and header rows if they don't exist yet.
     Appends rows so historical data accumulates across runs.
@@ -24,7 +49,7 @@ def export_to_sheets(report: WeeklyReport) -> None:
         logger.debug("No spreadsheet ID configured — skipping Sheets export")
         return
 
-    gc = gspread.service_account(filename=creds_file)
+    gc = _get_gspread_client(creds_file)
     sh = gc.open_by_key(spreadsheet_id)
 
     week = report.week_start.strftime("%Y-%m-%d")
@@ -32,10 +57,55 @@ def export_to_sheets(report: WeeklyReport) -> None:
     _write_summary(sh, report, week)
     _write_asset_scores(sh, report, week)
     _write_scenarios(sh, report, week)
-    _write_validations(sh, report, week)
-    _write_trade_sheet(sh, report, week)
+    _write_trades(sh, report, week)
+    _write_consensus(sh, report, week)
 
     logger.info("Report exported to Google Sheets (week: %s)", week)
+
+
+def export_outcomes_to_sheets(outcomes: list[TradeOutcome]) -> None:
+    """Export resolved trade outcomes to the Outcomes worksheet."""
+    from config.settings import settings
+
+    creds_file = settings.google_sheets_credentials_file
+    spreadsheet_id = settings.google_sheets_spreadsheet_id
+
+    if not spreadsheet_id or not outcomes:
+        return
+
+    gc = _get_gspread_client(creds_file)
+    sh = gc.open_by_key(spreadsheet_id)
+
+    headers = [
+        "Week", "Ticker", "Direction", "Entry Price", "Exit Price",
+        "Exit Reason", "P&L %", "Direction Correct?",
+        "Consensus Score", "Our Score", "Divergence",
+        "Divergence Label", "Days Held",
+    ]
+    ws = _get_or_create_worksheet(sh, "Outcomes", headers)
+
+    rows = [
+        [
+            o.week,
+            o.ticker,
+            o.direction,
+            o.entry_price,
+            o.exit_price,
+            o.exit_reason,
+            o.pnl_pct,
+            "Yes" if o.direction_correct else "No",
+            o.consensus_score,
+            o.our_score,
+            o.divergence,
+            o.divergence_label,
+            o.days_held,
+        ]
+        for o in outcomes
+    ]
+
+    if rows:
+        ws.append_rows(rows, value_input_option="USER_ENTERED")
+        logger.info("Exported %d outcomes to Google Sheets", len(rows))
 
 
 def _get_or_create_worksheet(
@@ -73,12 +143,15 @@ def _write_asset_scores(
 ) -> None:
     headers = [
         "Week", "Ticker", "Asset Class", "Direction",
-        "Composite Score", "Narrative (40%)", "Technical (25%)",
-        "Scenario (20%)", "Contrarian (15%)",
-        "Confidence", "Conflict", "Edge Type",
+        "Composite Score", "Narrative (50%)", "Technical (25%)",
+        "Scenario (25%)", "Contrarian Nudge",
+        "Conviction", "Conflict", "Edge Type",
         "Narrative Count", "Top Narrative",
     ]
     ws = _get_or_create_worksheet(sh, "Asset Scores", headers)
+
+    # Build conviction lookup from asset_scores
+    conviction_by_ticker = {s.ticker: s.conviction for s in report.asset_scores}
 
     # Prefer composite scores (full breakdown); fall back to basic asset scores
     if report.composite_scores:
@@ -93,7 +166,7 @@ def _write_asset_scores(
                 cs.technical_score,
                 cs.scenario_score,
                 cs.contrarian_bonus,
-                cs.confidence,
+                conviction_by_ticker.get(cs.ticker, 0.0),
                 cs.conflict_flag,
                 cs.edge_type,
                 cs.narrative_count,
@@ -149,72 +222,68 @@ def _write_scenarios(
         ws.append_rows(rows, value_input_option="USER_ENTERED")
 
 
-def _write_trade_sheet(
+def _write_trades(
     sh: gspread.Spreadsheet, report: WeeklyReport, week: str
 ) -> None:
+    """Write trade theses to the Trades worksheet."""
     headers = [
-        "Week", "Ticker", "Direction", "Composite Score",
-        "Narrative (40%)", "Technical (25%)", "Scenario (20%)",
-        "Contrarian (15%)", "Calibration Mult",
-        "Entry Price",
-        "Position USD", "Position Size", "Portfolio %", "Stop Loss",
-        "Take Profit", "Partial TP", "R:R", "Risk USD", "Reward USD",
-        "Horizon Days", "Confidence", "Regime", "Conflict", "Narrative",
+        "Week", "Ticker", "Direction", "Entry Price",
+        "TP %", "SL %", "R:R",
+        "Consensus Score", "Our Score", "Divergence",
+        "Divergence Label", "Composite Score", "Rationale",
     ]
-    ws = _get_or_create_worksheet(sh, "Trade Sheet", headers)
+    ws = _get_or_create_worksheet(sh, "Trades", headers)
     rows = [
         [
             week,
-            t.ticker,
-            t.direction,
-            t.composite_score,
-            t.narrative_score,
-            t.technical_score,
-            t.scenario_score,
-            t.contrarian_bonus,
-            t.calibration_mult,
-            t.entry_price,
-            t.position_usd,
-            t.position_size,
-            t.portfolio_pct,
-            t.stop_loss_price,
-            t.take_profit_price,
-            t.intermediate_tp_price or "",
-            t.risk_reward,
-            t.risk_usd,
-            t.reward_usd,
-            t.horizon_days,
-            t.confidence,
-            t.regime,
-            t.conflict_flag,
-            t.top_narrative,
+            tt.ticker,
+            tt.direction,
+            tt.entry_price,
+            tt.take_profit_pct,
+            tt.stop_loss_pct,
+            tt.risk_reward_ratio,
+            tt.consensus_score_at_entry,
+            tt.our_score_at_entry,
+            tt.divergence_at_entry,
+            tt.divergence_label,
+            tt.composite_score,
+            tt.rationale,
         ]
-        for t in report.trades
+        for tt in report.trade_theses
     ]
     if rows:
         ws.append_rows(rows, value_input_option="USER_ENTERED")
 
 
-def _write_validations(
+def _write_consensus(
     sh: gspread.Spreadsheet, report: WeeklyReport, week: str
 ) -> None:
+    """Write consensus scores to the Consensus worksheet."""
+    if not report.consensus_scores:
+        return
+
     headers = [
-        "Week", "Ticker", "Asset Class", "Predicted Direction", "Predicted Score",
-        "Actual Return %", "Actual Direction", "Hit",
+        "Week", "Ticker", "Consensus Score", "Direction",
+        "Options Skew", "Funding 7d", "Top Trader L/S",
+        "ETF Flow 5d", "Put/Call Ratio", "Max Pain Dist %",
+        "OI Change 7d %",
     ]
-    ws = _get_or_create_worksheet(sh, "Validations", headers)
+    ws = _get_or_create_worksheet(sh, "Consensus", headers)
     rows = [
         [
             week,
-            v.ticker,
-            v.asset_class.value,
-            v.predicted_direction.value,
-            v.predicted_score,
-            v.actual_return_pct,
-            v.actual_direction.value,
-            v.hit,
+            cs.ticker,
+            cs.consensus_score,
+            cs.consensus_direction,
+            cs.options_skew,
+            cs.funding_rate_7d,
+            cs.top_trader_ls_ratio,
+            cs.etf_flow_5d,
+            cs.put_call_ratio,
+            cs.max_pain_distance_pct,
+            cs.oi_change_7d_pct,
         ]
-        for v in report.price_validations
+        for cs in report.consensus_scores
     ]
     if rows:
         ws.append_rows(rows, value_input_option="USER_ENTERED")

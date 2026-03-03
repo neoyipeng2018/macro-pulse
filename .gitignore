@@ -13,8 +13,6 @@ venv/
 # Environment & credentials
 .env
 *.credentials.json
-*-e30ea47da3e3.json
-config/*.json
 
 # Data (runtime)
 data/raw/
