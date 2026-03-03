@@ -160,9 +160,9 @@ def compute_composite_scores(
         composite = max(-1.0, min(1.0, composite))
 
         # Determine direction from composite score
-        if composite > 0.1:
+        if composite > 0.15:
             direction = SentimentDirection.BULLISH
-        elif composite < -0.1:
+        elif composite < -0.15:
             direction = SentimentDirection.BEARISH
         else:
             direction = SentimentDirection.NEUTRAL

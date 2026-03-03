@@ -53,9 +53,9 @@ def aggregate_asset_scores(narratives: list[Narrative]) -> list[WeeklyAssetScore
         avg_conviction = sum(v["conviction"] for v in votes) / len(votes)
 
         # Determine direction from score
-        if weighted_score > 0.1:
+        if weighted_score > 0.15:
             direction = SentimentDirection.BULLISH
-        elif weighted_score < -0.1:
+        elif weighted_score < -0.15:
             direction = SentimentDirection.BEARISH
         else:
             direction = SentimentDirection.NEUTRAL

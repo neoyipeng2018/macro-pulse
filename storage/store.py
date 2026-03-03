@@ -772,7 +772,7 @@ def _load_report_from_row(conn: sqlite3.Connection, row: sqlite3.Row) -> WeeklyR
                 label = "mildly_non_consensus"
             else:
                 label = "aligned"
-            our_dir = "bullish" if our > 0.1 else ("bearish" if our < -0.1 else "neutral")
+            our_dir = "bullish" if our > 0.15 else ("bearish" if our < -0.15 else "neutral")
             divergence_metrics.append(
                 DivergenceMetrics(
                     ticker=cns.ticker,

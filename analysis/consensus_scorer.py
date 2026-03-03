@@ -287,10 +287,10 @@ def compute_divergence(
         else:
             label = "aligned"
 
-        # Our direction
-        if our_score > 0.1:
+        # Our direction (use same thresholds as consensus for consistency)
+        if our_score > _BULLISH_THRESHOLD:
             our_dir = "bullish"
-        elif our_score < -0.1:
+        elif our_score < _BEARISH_THRESHOLD:
             our_dir = "bearish"
         else:
             our_dir = "neutral"

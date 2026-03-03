@@ -240,9 +240,9 @@ def generate_trade_theses(
             continue
 
         # Determine direction from composite score
-        if cs.composite_score > 0.1:
+        if cs.composite_score > 0.15:
             direction = "bullish"
-        elif cs.composite_score < -0.1:
+        elif cs.composite_score < -0.15:
             direction = "bearish"
         else:
             continue  # No trade for neutral
