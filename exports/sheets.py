@@ -24,9 +24,17 @@ def _get_gspread_client(creds_file: str) -> gspread.Client:
     try:
         import streamlit as st
         creds = dict(st.secrets["gcp_service_account"])
-        # TOML stores \n as literal \\n — gspread needs real newlines
+        # TOML literal strings keep \n as two chars — gspread needs real newlines.
+        # Double-quoted TOML strings already convert \n, so this is a safe no-op then.
         if "private_key" in creds:
-            creds["private_key"] = creds["private_key"].replace("\\n", "\n")
+            pk = creds["private_key"].replace("\\n", "\n").strip()
+            creds["private_key"] = pk
+            logger.debug(
+                "Service-account key: client_email=%s, key starts=%s…, key ends=…%s",
+                creds.get("client_email", "?"),
+                pk[:30],
+                pk[-30:],
+            )
         return gspread.service_account_from_dict(creds)
     except KeyError:
         pass  # no [gcp_service_account] section — fall through to error

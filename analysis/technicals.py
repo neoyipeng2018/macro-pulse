@@ -214,7 +214,7 @@ def compute_technicals(tickers: list[str]) -> dict[str, TechnicalSnapshot]:
         return {}
 
     try:
-        df = yf.download(yf_symbols, period="3mo", progress=False, threads=True)
+        df = yf.download(yf_symbols, period="3mo", progress=False, threads=True, auto_adjust=True)
     except Exception:
         logger.exception("yfinance download failed")
         return {}
