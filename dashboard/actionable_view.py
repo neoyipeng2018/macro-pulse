@@ -781,11 +781,18 @@ def build_scenario_intel(report: WeeklyReport) -> list[ScenarioAssetIntel]:
         # Look up composite score for this ticker (try raw, then resolved)
         comp = composite_by_ticker.get(sv.ticker) or composite_by_ticker.get(resolved_sv_ticker)
 
+        # Use composite direction when available (matches Sheets export);
+        # fall back to scenario-only net_direction for older reports.
+        if comp:
+            effective_direction = comp.direction
+        else:
+            effective_direction = sv.net_direction
+
         results.append(
             ScenarioAssetIntel(
                 ticker=sv.ticker,
                 asset_class=sv.asset_class,
-                net_direction=sv.net_direction,
+                net_direction=effective_direction,
                 net_score=sv.net_score,
                 avg_probability=round(avg_prob, 4),
                 scenarios=sv.scenarios,
