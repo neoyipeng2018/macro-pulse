@@ -24,9 +24,15 @@ def _get_gspread_client(creds_file: str) -> gspread.Client:
     try:
         import streamlit as st
         creds = dict(st.secrets["gcp_service_account"])
+        # TOML stores \n as literal \\n — gspread needs real newlines
+        if "private_key" in creds:
+            creds["private_key"] = creds["private_key"].replace("\\n", "\n")
         return gspread.service_account_from_dict(creds)
-    except Exception:
-        pass
+    except KeyError:
+        pass  # no [gcp_service_account] section — fall through to error
+    except Exception as exc:
+        logger.error("Failed to authenticate with st.secrets: %s", exc)
+        raise
 
     raise RuntimeError(
         "No Google Sheets credentials found. Set GOOGLE_SHEETS_CREDENTIALS_FILE "
