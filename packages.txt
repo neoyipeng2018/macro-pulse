@@ -1,0 +1,10 @@
+libcurl4-openssl-dev
+libssl-dev
+libffi-dev
+libxml2-dev
+libxslt1-dev
+libc-ares-dev
+libsecp256k1-dev
+libgmp-dev
+pkg-config
+build-essential
