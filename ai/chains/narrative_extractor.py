@@ -8,7 +8,14 @@ from datetime import datetime
 from langchain_core.language_models import BaseChatModel
 
 from ai.prompts.templates import NARRATIVE_EXTRACTION_PROMPT
-from models.schemas import AssetClass, AssetSentiment, EdgeType, Narrative, SentimentDirection, Signal
+from models.schemas import (
+    AssetClass,
+    AssetSentiment,
+    EdgeType,
+    Narrative,
+    SentimentDirection,
+    Signal,
+)
 
 logger = logging.getLogger(__name__)
 

@@ -13,10 +13,13 @@ from models.schemas import (
     ChainStepProgress,
     CompositeAssetScore,
     ConsensusScore,
+    ConsensusView,
     DivergenceMetrics,
     EconomicRegime,
     EdgeType,
+    EvidenceSource,
     Narrative,
+    NonConsensusView,
     ScenarioAssetImpact,
     ScenarioAssetView,
     SentimentDirection,
@@ -220,6 +223,51 @@ def init_db() -> None:
             divergence_label TEXT NOT NULL DEFAULT 'aligned',
             days_held INTEGER NOT NULL DEFAULT 0
         );
+
+        CREATE TABLE IF NOT EXISTS consensus_views (
+            id INTEGER PRIMARY KEY AUTOINCREMENT,
+            report_id TEXT NOT NULL,
+            ticker TEXT NOT NULL,
+            asset_class TEXT NOT NULL,
+            quant_score REAL NOT NULL DEFAULT 0.0,
+            quant_direction TEXT NOT NULL DEFAULT 'neutral',
+            quant_components TEXT NOT NULL DEFAULT '{}',
+            positioning_consensus TEXT NOT NULL DEFAULT '',
+            positioning_summary TEXT NOT NULL DEFAULT '',
+            narrative_consensus TEXT NOT NULL DEFAULT '',
+            market_narrative TEXT NOT NULL DEFAULT '',
+            consensus_coherence TEXT NOT NULL DEFAULT 'aligned',
+            coherence_detail TEXT NOT NULL DEFAULT '',
+            key_levels TEXT NOT NULL DEFAULT '[]',
+            priced_in TEXT NOT NULL DEFAULT '[]',
+            not_priced_in TEXT NOT NULL DEFAULT '[]',
+            consensus_direction TEXT NOT NULL DEFAULT 'neutral',
+            consensus_confidence REAL NOT NULL DEFAULT 0.0,
+            last_updated TEXT NOT NULL,
+            FOREIGN KEY (report_id) REFERENCES weekly_reports(id)
+        );
+
+        CREATE TABLE IF NOT EXISTS non_consensus_views (
+            id INTEGER PRIMARY KEY AUTOINCREMENT,
+            report_id TEXT NOT NULL,
+            ticker TEXT NOT NULL,
+            asset_class TEXT NOT NULL,
+            consensus_direction TEXT NOT NULL,
+            consensus_narrative TEXT NOT NULL DEFAULT '',
+            our_direction TEXT NOT NULL,
+            our_conviction REAL NOT NULL DEFAULT 0.0,
+            thesis TEXT NOT NULL DEFAULT '',
+            edge_type TEXT NOT NULL DEFAULT 'contrarian',
+            evidence TEXT NOT NULL DEFAULT '[]',
+            independent_source_count INTEGER NOT NULL DEFAULT 0,
+            has_testable_mechanism INTEGER NOT NULL DEFAULT 0,
+            has_timing_edge INTEGER NOT NULL DEFAULT 0,
+            has_catalyst TEXT NOT NULL DEFAULT '',
+            invalidation TEXT NOT NULL DEFAULT '',
+            validity_score REAL NOT NULL DEFAULT 0.0,
+            signal_ids TEXT NOT NULL DEFAULT '[]',
+            FOREIGN KEY (report_id) REFERENCES weekly_reports(id)
+        );
     """
     )
     # Migrate: add consensus columns if missing (existing databases)
@@ -230,6 +278,22 @@ def init_db() -> None:
         conn.execute("ALTER TABLE narratives ADD COLUMN consensus_sources TEXT NOT NULL DEFAULT '[]'")
         conn.execute("ALTER TABLE narratives ADD COLUMN edge_type TEXT NOT NULL DEFAULT 'aligned'")
         conn.execute("ALTER TABLE narratives ADD COLUMN edge_rationale TEXT NOT NULL DEFAULT ''")
+
+    # Migrate: add new NC view enrichment columns
+    _nc_new_cols = [
+        ("supporting_mechanisms", "TEXT DEFAULT '[]'"),
+        ("mechanism_stage", "TEXT DEFAULT ''"),
+        ("regime_context", "TEXT DEFAULT ''"),
+        ("consensus_quant_score", "REAL DEFAULT 0.0"),
+        ("consensus_coherence", "TEXT DEFAULT ''"),
+    ]
+    for col_name, col_type in _nc_new_cols:
+        try:
+            conn.execute(f"SELECT {col_name} FROM non_consensus_views LIMIT 1")
+        except sqlite3.OperationalError:
+            conn.execute(
+                f"ALTER TABLE non_consensus_views ADD COLUMN {col_name} {col_type}"
+            )
 
     conn.commit()
     conn.close()
@@ -255,7 +319,7 @@ def save_report(report: WeeklyReport) -> None:
         ),
     )
 
-    # Save narratives
+    # Save narratives (legacy pipeline only)
     for narrative in report.narratives:
         conn.execute(
             """INSERT OR REPLACE INTO narratives
@@ -282,7 +346,6 @@ def save_report(report: WeeklyReport) -> None:
             ),
         )
 
-        # Save signals
         for signal in narrative.signals:
             conn.execute(
                 """INSERT OR IGNORE INTO signals
@@ -303,7 +366,7 @@ def save_report(report: WeeklyReport) -> None:
                 (narrative.id, signal.id),
             )
 
-    # Save asset scores
+    # Save asset scores (legacy pipeline only)
     for score in report.asset_scores:
         conn.execute(
             """INSERT INTO weekly_asset_scores
@@ -353,7 +416,7 @@ def save_report(report: WeeklyReport) -> None:
             ),
         )
 
-    # Save scenario asset views
+    # Save scenario asset views (legacy pipeline only)
     for sv in report.scenario_views:
         conn.execute(
             """INSERT INTO scenario_asset_views
@@ -374,7 +437,7 @@ def save_report(report: WeeklyReport) -> None:
             ),
         )
 
-    # Save composite scores
+    # Save composite scores (legacy pipeline only)
     for cs in report.composite_scores:
         conn.execute(
             """INSERT INTO composite_scores
@@ -427,7 +490,77 @@ def save_report(report: WeeklyReport) -> None:
             ),
         )
 
-    # Save trade theses
+    # Save consensus views
+    for cv in report.consensus_views:
+        conn.execute(
+            """INSERT INTO consensus_views
+            (report_id, ticker, asset_class, quant_score, quant_direction,
+             quant_components, positioning_consensus, positioning_summary,
+             narrative_consensus, market_narrative, consensus_coherence,
+             coherence_detail, key_levels, priced_in, not_priced_in,
+             consensus_direction, consensus_confidence, last_updated)
+            VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)""",
+            (
+                report.id,
+                cv.ticker,
+                cv.asset_class.value,
+                cv.quant_score,
+                cv.quant_direction,
+                json.dumps(cv.quant_components),
+                cv.positioning_consensus,
+                cv.positioning_summary,
+                cv.narrative_consensus,
+                cv.market_narrative,
+                cv.consensus_coherence,
+                cv.coherence_detail,
+                json.dumps(cv.key_levels),
+                json.dumps(cv.priced_in),
+                json.dumps(cv.not_priced_in),
+                cv.consensus_direction.value,
+                cv.consensus_confidence,
+                cv.last_updated.isoformat(),
+            ),
+        )
+
+    # Save non-consensus views
+    for ncv in report.non_consensus_views:
+        conn.execute(
+            """INSERT INTO non_consensus_views
+            (report_id, ticker, asset_class, consensus_direction,
+             consensus_narrative, our_direction, our_conviction, thesis,
+             edge_type, evidence, independent_source_count,
+             has_testable_mechanism, has_timing_edge, has_catalyst,
+             invalidation, validity_score, signal_ids,
+             supporting_mechanisms, mechanism_stage, regime_context,
+             consensus_quant_score, consensus_coherence)
+            VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)""",
+            (
+                report.id,
+                ncv.ticker,
+                ncv.asset_class.value,
+                ncv.consensus_direction.value,
+                ncv.consensus_narrative,
+                ncv.our_direction.value,
+                ncv.our_conviction,
+                ncv.thesis,
+                ncv.edge_type,
+                json.dumps([ev.model_dump() for ev in ncv.evidence]),
+                ncv.independent_source_count,
+                1 if ncv.has_testable_mechanism else 0,
+                1 if ncv.has_timing_edge else 0,
+                ncv.has_catalyst,
+                ncv.invalidation,
+                ncv.validity_score,
+                json.dumps(ncv.signal_ids),
+                json.dumps(ncv.supporting_mechanisms),
+                ncv.mechanism_stage,
+                ncv.regime_context,
+                ncv.consensus_quant_score,
+                ncv.consensus_coherence,
+            ),
+        )
+
+    # Save trade theses (legacy pipeline only)
     for tt in report.trade_theses:
         conn.execute(
             """INSERT INTO trade_theses
@@ -786,6 +919,102 @@ def _load_report_from_row(conn: sqlite3.Connection, row: sqlite3.Row) -> WeeklyR
                 )
             )
 
+    # Load consensus views
+    consensus_views_list: list[ConsensusView] = []
+    try:
+        cv_rows = conn.execute(
+            "SELECT * FROM consensus_views WHERE report_id = ?",
+            (report_id,),
+        ).fetchall()
+        for cvr in cv_rows:
+            consensus_views_list.append(
+                ConsensusView(
+                    ticker=cvr["ticker"],
+                    asset_class=AssetClass(cvr["asset_class"]),
+                    quant_score=cvr["quant_score"],
+                    quant_direction=cvr["quant_direction"],
+                    quant_components=json.loads(cvr["quant_components"]) if cvr["quant_components"] else {},
+                    positioning_consensus=cvr["positioning_consensus"] or "",
+                    positioning_summary=cvr["positioning_summary"] or "",
+                    narrative_consensus=cvr["narrative_consensus"] or "",
+                    market_narrative=cvr["market_narrative"] or "",
+                    consensus_coherence=cvr["consensus_coherence"] or "aligned",
+                    coherence_detail=cvr["coherence_detail"] or "",
+                    key_levels=json.loads(cvr["key_levels"]) if cvr["key_levels"] else [],
+                    priced_in=json.loads(cvr["priced_in"]) if cvr["priced_in"] else [],
+                    not_priced_in=json.loads(cvr["not_priced_in"]) if cvr["not_priced_in"] else [],
+                    consensus_direction=SentimentDirection(cvr["consensus_direction"]),
+                    consensus_confidence=cvr["consensus_confidence"],
+                    last_updated=datetime.fromisoformat(cvr["last_updated"]),
+                )
+            )
+    except sqlite3.OperationalError:
+        pass
+
+    # Load non-consensus views
+    non_consensus_views_list: list[NonConsensusView] = []
+    try:
+        ncv_rows = conn.execute(
+            "SELECT * FROM non_consensus_views WHERE report_id = ? ORDER BY validity_score DESC",
+            (report_id,),
+        ).fetchall()
+        for nr in ncv_rows:
+            evidence_list: list[EvidenceSource] = []
+            for ev in json.loads(nr["evidence"] or "[]"):
+                if isinstance(ev, dict):
+                    try:
+                        evidence_list.append(EvidenceSource(**ev))
+                    except (ValueError, KeyError):
+                        continue
+
+            # Load new enrichment fields (backwards-compat: may be missing in old DBs)
+            nr_keys = nr.keys()
+            supporting_mechanisms = (
+                json.loads(nr["supporting_mechanisms"])
+                if "supporting_mechanisms" in nr_keys and nr["supporting_mechanisms"]
+                else []
+            )
+            mechanism_stage = (
+                nr["mechanism_stage"] if "mechanism_stage" in nr_keys else ""
+            ) or ""
+            regime_context = (
+                nr["regime_context"] if "regime_context" in nr_keys else ""
+            ) or ""
+            consensus_quant_score = (
+                nr["consensus_quant_score"] if "consensus_quant_score" in nr_keys else 0.0
+            ) or 0.0
+            consensus_coherence = (
+                nr["consensus_coherence"] if "consensus_coherence" in nr_keys else ""
+            ) or ""
+
+            non_consensus_views_list.append(
+                NonConsensusView(
+                    ticker=nr["ticker"],
+                    asset_class=AssetClass(nr["asset_class"]),
+                    consensus_direction=SentimentDirection(nr["consensus_direction"]),
+                    consensus_narrative=nr["consensus_narrative"] or "",
+                    our_direction=SentimentDirection(nr["our_direction"]),
+                    our_conviction=nr["our_conviction"],
+                    thesis=nr["thesis"] or "",
+                    edge_type=nr["edge_type"] or "contrarian",
+                    evidence=evidence_list,
+                    independent_source_count=nr["independent_source_count"],
+                    has_testable_mechanism=bool(nr["has_testable_mechanism"]),
+                    has_timing_edge=bool(nr["has_timing_edge"]),
+                    has_catalyst=nr["has_catalyst"] or "",
+                    invalidation=nr["invalidation"] or "",
+                    validity_score=nr["validity_score"],
+                    signal_ids=json.loads(nr["signal_ids"]) if nr["signal_ids"] else [],
+                    supporting_mechanisms=supporting_mechanisms,
+                    mechanism_stage=mechanism_stage,
+                    regime_context=regime_context,
+                    consensus_quant_score=consensus_quant_score,
+                    consensus_coherence=consensus_coherence,
+                )
+            )
+    except sqlite3.OperationalError:
+        pass
+
     return WeeklyReport(
         id=report_id,
         week_start=datetime.fromisoformat(row["week_start"]),
@@ -803,6 +1032,8 @@ def _load_report_from_row(conn: sqlite3.Connection, row: sqlite3.Row) -> WeeklyR
         consensus_scores=consensus_scores_list,
         divergence_metrics=divergence_metrics,
         trade_theses=trade_theses,
+        consensus_views=consensus_views_list,
+        non_consensus_views=non_consensus_views_list,
     )
 
 
@@ -883,6 +1114,23 @@ def update_trade_thesis_outcome(
     )
     conn.commit()
     conn.close()
+
+
+def get_all_trade_theses() -> list[dict]:
+    """Get all trade theses (both pending and resolved) for Sheets sync."""
+    conn = _get_conn()
+    try:
+        rows = conn.execute(
+            """SELECT tt.*, wr.week_start as week
+            FROM trade_theses tt
+            JOIN weekly_reports wr ON tt.report_id = wr.id
+            ORDER BY tt.entry_date ASC"""
+        ).fetchall()
+        return [dict(r) for r in rows]
+    except sqlite3.OperationalError:
+        return []
+    finally:
+        conn.close()
 
 
 def get_all_outcomes() -> list[dict]:

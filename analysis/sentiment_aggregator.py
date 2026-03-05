@@ -1,4 +1,4 @@
-"""Deterministic aggregation of per-asset sentiment across narratives."""
+"""LEGACY — only used by run_pipeline_legacy(). Deterministic aggregation of per-asset sentiment across narratives."""
 
 from models.schemas import (
     AssetClass,

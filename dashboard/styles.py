@@ -908,32 +908,133 @@ details[data-testid="stExpander"] {
 .step-invalidated .chain-step-desc { color: #FF1744; text-decoration: line-through; }
 .step-invalidated .chain-step-status { color: #FF1744; }
 
-/* === COMPOSITE SCORE BREAKDOWN === */
-.composite-breakdown {
-    display: flex;
-    align-items: center;
-    gap: 4px;
-    padding: 4px 0 2px 0;
-    flex-wrap: wrap;
+/* === PHASE 1: CONSENSUS CARDS === */
+.consensus-card {
+    background: #1a1f2e;
+    border: 1px solid #1a2332;
+    border-radius: 6px;
+    padding: 14px 18px;
+    margin-bottom: 6px;
 }
-.comp-label {
-    font-size: 0.55rem;
+.consensus-card-bullish { border-left: 3px solid #00E676; }
+.consensus-card-bearish { border-left: 3px solid #FF1744; }
+.consensus-card-neutral { border-left: 3px solid #FFEA00; }
+
+.coherence-badge {
+    display: inline-block;
+    padding: 2px 8px;
+    border-radius: 3px;
+    font-size: 0.6rem;
     font-weight: 700;
-    color: #4a5568;
-    letter-spacing: 0.06em;
+    letter-spacing: 0.08em;
     text-transform: uppercase;
 }
-.comp-val {
-    font-size: 0.65rem;
-    font-weight: 600;
-    color: #8892a4;
-    letter-spacing: 0.02em;
-    font-variant-numeric: tabular-nums;
+.coherence-aligned {
+    background: rgba(0, 230, 118, 0.15);
+    color: #00E676;
+    border: 1px solid rgba(0, 230, 118, 0.3);
 }
-.comp-sep {
-    color: #2a3442;
+.coherence-fractured {
+    background: rgba(255, 145, 0, 0.2);
+    color: #FF9100;
+    border: 1px solid rgba(255, 145, 0, 0.35);
+}
+.coherence-divergent {
+    background: rgba(255, 23, 68, 0.2);
+    color: #FF1744;
+    border: 1px solid rgba(255, 23, 68, 0.3);
+}
+
+/* === PHASE 2: NON-CONSENSUS VIEW CARDS === */
+.nc-view-card {
+    background: #1a1f2e;
+    border: 1px solid #1a2332;
+    border-left: 3px solid #FF9100;
+    border-radius: 6px;
+    padding: 14px 18px;
+    margin-bottom: 8px;
+}
+.nc-thesis {
+    color: #c5c8d4;
+    font-size: 0.75rem;
+    line-height: 1.6;
+    margin: 6px 0;
+}
+.nc-evidence-item {
+    display: flex;
+    align-items: baseline;
+    gap: 8px;
+    padding: 3px 0;
+}
+.nc-evidence-check {
+    color: #00E676;
+    font-size: 0.7rem;
+    flex-shrink: 0;
+}
+.nc-evidence-source {
+    display: inline-block;
+    padding: 1px 6px;
+    border-radius: 3px;
     font-size: 0.55rem;
-    margin: 0 2px;
+    font-weight: 700;
+    letter-spacing: 0.06em;
+    text-transform: uppercase;
+    background: rgba(0, 212, 170, 0.1);
+    color: #00d4aa;
+    border: 1px solid rgba(0, 212, 170, 0.2);
+    flex-shrink: 0;
+}
+.nc-evidence-text {
+    font-size: 0.7rem;
+    color: #8892a4;
+    line-height: 1.4;
+}
+
+/* === VALIDITY BAR === */
+.validity-bar-bg {
+    background: #0d1117;
+    border-radius: 3px;
+    height: 6px;
+    width: 100px;
+    display: inline-block;
+    vertical-align: middle;
+}
+.validity-bar-fill {
+    height: 100%;
+    border-radius: 3px;
+    background: #FF9100;
+}
+.validity-label {
+    font-size: 0.65rem;
+    color: #8892a4;
+    margin-left: 6px;
+    vertical-align: middle;
+}
+
+/* === PRICED IN / NOT PRICED IN CHIPS === */
+.priced-in-chip {
+    display: inline-block;
+    padding: 1px 6px;
+    border-radius: 3px;
+    font-size: 0.55rem;
+    font-weight: 600;
+    letter-spacing: 0.04em;
+    background: rgba(74, 85, 104, 0.3);
+    color: #8892a4;
+    border: 1px solid rgba(74, 85, 104, 0.4);
+    margin: 2px 3px 2px 0;
+}
+.not-priced-chip {
+    display: inline-block;
+    padding: 1px 6px;
+    border-radius: 3px;
+    font-size: 0.55rem;
+    font-weight: 600;
+    letter-spacing: 0.04em;
+    background: rgba(255, 145, 0, 0.12);
+    color: #FF9100;
+    border: 1px solid rgba(255, 145, 0, 0.25);
+    margin: 2px 3px 2px 0;
 }
 </style>
 """

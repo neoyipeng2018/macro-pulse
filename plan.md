@@ -1,576 +1,867 @@
-# Plan: Capture Real Consensus, Measure True Non-Consensus, Profit on 1-Week BTC/ETH Trades
+# Plan: Simplify Pipeline — Stop at Phase 2, Make It the Whole Product
 
 ## The Problem
 
-Right now, "consensus" is whatever Claude decides to write in a free-text `consensus_view` field. It cites things like "Goldman calling for $2800 gold" or "CME FedWatch shows 85%" — but these references come from the LLM's training data, not from live market data. The system has no actual measurement of what the market believes about BTC and ETH over the next week.
+The three-phase pipeline has a structural contradiction:
 
-This means:
-- We don't actually know what consensus is
-- We can't measure how far our view diverges from it
-- We can't tell if our "contrarian" label means anything
-- We can't track whether non-consensus views were correct after the fact
+- **Phase 1** builds a rigorous consensus picture (quant scoring + LLM synthesis)
+- **Phase 2** discovers validated non-consensus views with evidence quality gates
+- **Phase 3** re-scores everything through a composite formula that _actively fights contrarian trades_ (technicals vote for consensus trend), _leaks in consensus-aligned assets_ (via aligned narratives), and _ranks NC trades below consensus trades_ (because the composite formula rewards pillar agreement)
+
+Phase 3 is noise. The NC views from Phase 2 already have direction, conviction, validity, evidence, and invalidation. Re-running them through sentiment aggregation → composite scoring → trade thesis generation adds complexity without adding signal.
 
 ## The Goal
 
-Build a system that:
-1. **Computes a quantitative consensus score** for BTC and ETH from real market data (what does the market actually believe about direction this week?)
-2. **Computes our directional view** from the existing signal pipeline (what do our signals say?)
-3. **Measures the divergence** between consensus and our view (how non-consensus are we, exactly?)
-4. **Tracks 1-week outcomes** to validate whether non-consensus calls were correct
-5. **Focus**: BTC and ETH only. Everything else is secondary.
+**Stop at Phase 2. Make Phase 2 the whole product.**
 
----
+The dashboard should show:
+1. What the market believes (Phase 1 consensus) — as context
+2. Where we disagree and why (Phase 2 non-consensus views) — as the product
+3. What causal chains are driving these views (transmission mechanisms) — as depth
+4. Full drill-down into evidence, sources, and signals — as transparency
 
-## Phase 1: Build the Consensus Score (New Collectors)
+No composite scores. No sentiment aggregation. No narrative extraction. No trade thesis generation. The NC view IS the trade.
 
-The consensus score is a single number per asset: **-1.0 (max bearish consensus) to +1.0 (max bullish consensus)**. It's computed from hard market data, not LLM interpretation.
+## What Gets Removed
 
-### 1A. Options Consensus Collector (`collectors/options_consensus.py`)
+### Files to delete or gut:
+- `analysis/sentiment_aggregator.py` — no longer needed (was bridge between narratives and composite)
+- `analysis/composite_scorer.py` — no longer needed (composite scoring is the problem)
+- `ai/chains/narrative_extractor.py` — remove `extract_narratives_from_nc_views()` (keep `extract_narratives()` for legacy pipeline if desired)
 
-**Source**: Deribit public API (free, no auth)
+### Models to deprecate:
+- `WeeklyAssetScore` — product of sentiment aggregation, no longer computed
+- `CompositeAssetScore` — the composite formula is gone
+- `DivergenceMetrics` — divergence was composite_score - consensus_score; without composite, this is meaningless
+- `Narrative` — no longer extracted in the three-phase pipeline
+- `AssetSentiment` — sub-object of Narrative
 
-**Data to collect for BTC and ETH**:
+### Pipeline steps to remove from `run_weekly.py`:
+- Phase 3 step 3.1 (narrative extraction from NC views)
+- Phase 3 step 3.3 (regime classification) — move to Phase 1 or Phase 2
+- Phase 3 step 3.4 (sentiment aggregation)
+- Phase 3 step 3.4 continued (composite scoring)
+- Phase 3 step 3.5 (divergence computation)
+- Phase 3 step 3.6 (trade thesis generation)
+- Phase 3 step 3.7 (weekly summary)
 
-| Metric | API Endpoint | What It Tells Us |
-|---|---|---|
-| 25-delta risk reversal (skew) | Compute from `public/get_book_summary_by_currency` | Positive = calls expensive = bullish consensus. Negative = puts expensive = bearish consensus. **This is the single best consensus thermometer.** |
-| Put/Call OI ratio | `public/get_book_summary_by_currency?kind=option` | Below 0.7 = bullish consensus. Above 1.0 = bearish. |
-| Max pain (weekly expiry) | Compute from OI by strike | The price the market "expects" at weekly expiry. If current price is far above max pain, consensus is stretched bullish. |
-| DVOL (Deribit Volatility Index) | `public/get_volatility_index_data` | High DVOL = uncertainty, not directional. But DVOL spike + negative skew = bearish consensus with conviction. |
-| IV term structure slope | Compare near-term vs. far-term ATM IV | Backwardation (near > far) = market expects move THIS week. Contango = quiet consensus. |
+### Dashboard sections to remove:
+- Asset cards (scenario-based and legacy)
+- Consensus meters (divergence display)
+- Trade thesis cards
+- The entire BULLISH/BEARISH/NEUTRAL grouping
 
-**Consensus signal derivation**:
-```
-skew_signal = normalize(risk_reversal_25d, historical_range)  # -1 to +1
-pcr_signal  = normalize(1.0 - put_call_ratio, [0.5, 1.5])    # inverted: low PCR = bullish
-maxpain_signal = sign(max_pain - current_price) * magnitude   # above max pain = bearish drift expected
-```
+## What Gets Kept
 
-**Implementation notes**:
-- Filter to the nearest weekly expiry options only (1-week horizon alignment)
-- Compute 25-delta skew by interpolating IV across strikes at the weekly expiry
-- Cache results — Deribit data doesn't change fast enough to need real-time polling
-- Store raw values AND the derived consensus signal
+- **Phase 1** (consensus): `run_phase_1()` stays exactly as is
+- **Phase 2** (non-consensus): `run_phase_2()` stays, gets expanded
+- **Transmission mechanisms**: moved from Phase 3 into Phase 2
+- **Regime classification**: moved from Phase 3 into Phase 2
+- **ConsensusScore**, **ConsensusView**, **NonConsensusView**, **ActiveScenario** models stay
+- **Storage**: consensus_scores, consensus_views, non_consensus_views, active_scenarios tables stay
+- **Sheets export**: Consensus, Consensus Views, Non-Consensus Views worksheets stay
 
-### 1B. Multi-Exchange Derivatives Collector (`collectors/derivatives_consensus.py`)
+## What Gets Added/Expanded
 
-**Source**: Binance, Bybit, OKX public APIs via `ccxt` library (free)
+### 1. Mechanism matching moves into Phase 2
 
-**Data to collect for BTC and ETH**:
+Currently in Phase 3. Move it to Phase 2 so NC views can reference which transmission mechanisms support them.
 
-| Metric | Source | What It Tells Us |
-|---|---|---|
-| Long/short ratio (global) | Binance `futures/data/globalLongShortAccountRatio` | Retail directional consensus |
-| Long/short ratio (top traders) | Binance `futures/data/topLongShortPositionRatio` | Smart money directional consensus |
-| Aggregated funding rate | Binance + Bybit + OKX via ccxt | OI-weighted average. Persistently positive = bullish consensus. |
-| 7-day accumulated funding | Compute from historical rates | Total cost longs paid shorts over the week. High = strong bullish consensus. |
-| OI change (24h, 7d) | Multiple exchanges | Rising OI + rising price = consensus strengthening. Rising OI + falling price = new shorts entering. |
-| OI-weighted funding | Weight each exchange's rate by its OI share | True consensus rate, not skewed by low-liquidity exchanges |
+### 2. NC views get enriched with mechanism links
 
-**Consensus signal derivation**:
-```
-ls_signal       = normalize(long_short_ratio - 1.0, [-0.5, 0.5])  # >1 = bullish consensus
-top_ls_signal   = normalize(top_trader_ratio - 1.0, [-0.5, 0.5])  # smart money consensus
-funding_signal  = normalize(accumulated_7d_funding, [-0.1%, 0.1%]) # persistent direction
-oi_signal       = sign(oi_7d_change) * sign(price_7d_change)       # +1 if OI and price agree
-```
+Each `NonConsensusView` should reference the active scenarios that support its thesis. This connects "what we disagree on" with "why, causally."
 
-**Why multi-exchange matters**: Single-exchange funding can be misleading (arbitrage, exchange-specific flows). OI-weighted average across 3+ exchanges is the true market rate.
+### 3. The dashboard becomes a deep-dive into NC views
 
-### 1C. ETF Flow Collector (`collectors/etf_flows.py`)
+Instead of asset cards with composite scores, the dashboard shows rich NC view cards with full drill-down capability.
 
-**Source**: SoSoValue API (free limited), with fallback to scraping free dashboards (BitBO, CoinMarketCap). No paid APIs until the full signal is validated.
+## Implementation Steps
 
-**Data to collect**:
+### Step 1: Expand the NonConsensusView schema
 
-| Metric | What It Tells Us |
-|---|---|
-| Daily net BTC ETF flows (total across all funds) | Institutional buying/selling pressure |
-| 5-day rolling net flow | Smoothed institutional consensus |
-| IBIT (BlackRock) specific flow | The single most important ETF — BlackRock is the institutional bellwether |
-| Daily net ETH ETF flows | Same for ETH (lower volume, more volatile signal) |
-
-**Consensus signal derivation**:
-```
-etf_signal = normalize(rolling_5d_net_flow, 30d_rolling_range)  # persistent inflows = bullish consensus
-```
-
-**Why this matters**: ETF flows represent TradFi institutional consensus. This is a completely different population than crypto-native traders (who show up in funding rates). When both agree, consensus is strong. When they diverge, interesting things happen.
-
-**Cost approach**: Start free. SoSoValue has a free API tier. If it's unreliable, fall back to scraping the free web dashboards (SoSoValue, BitBO, CoinMarketCap all publish daily flows). Only consider CoinGlass ($29/mo) after we've validated that ETF flows actually improve our consensus accuracy over 4+ weeks of outcome data.
-
-### 1D. Consensus Score Aggregator (`analysis/consensus_scorer.py`)
-
-Combine the individual consensus signals into a single score per asset:
-
-```
-consensus_score = equal_weight_average(
-    options_skew_signal,       # what are sophisticated traders paying for?
-    funding_signal,            # leveraged trader consensus
-    top_trader_ls_signal,      # smart money directional bet
-    etf_flow_signal,           # institutional consensus
-    pcr_signal,                # put/call ratio
-    oi_momentum_signal         # conviction behind consensus
-)
-# = (1/6) × each component
-```
-
-**Equal-weighted by design.** We don't know which components are most predictive yet. Equal weights are the honest starting point. Once we have 8-12 weeks of outcome data (Phase 4), we can shift weights toward whichever components best predicted actual 1-week moves.
-
-**Normalization**: Each component is normalized to [-1, +1] against a **30-day rolling window**. Why 30 days:
-- 90 days includes too many regime changes — an options skew of +2% means something different in a post-halving euphoria vs. a range-bound market. A 90-day window would wash that out.
-- 7-14 days is too noisy — not enough history to establish what "normal" looks like.
-- 30 days captures the current volatility regime without being stale. If we're in a high-vol period, "normal" funding rates are higher, and only extremes relative to the current regime register as strong consensus signals.
-- For the 1-week forecast horizon, we want to know "is this consensus reading extreme *for the current environment*?" — 30 days is the tightest window that answers that reliably.
-
-**Output**: `ConsensusScore` model per asset:
-```python
-class ConsensusScore(BaseModel):
-    ticker: str                          # "Bitcoin" or "Ethereum"
-    consensus_score: float               # -1.0 to +1.0
-    consensus_direction: str             # bullish / bearish / neutral (threshold ±0.15)
-    components: dict[str, float]         # breakdown by source (each -1 to +1)
-    options_skew: float                  # raw 25-delta risk reversal
-    funding_rate_7d: float               # 7-day accumulated funding
-    top_trader_ls_ratio: float           # raw ratio
-    etf_flow_5d: float                   # USD millions, 5-day rolling
-    put_call_ratio: float                # raw PCR
-    max_pain_distance_pct: float         # (current_price - max_pain) / current_price
-    oi_change_7d_pct: float              # % OI change over 7 days
-    data_timestamp: datetime             # when this was computed
-```
-
----
-
-## Phase 2: Compute the Divergence (Non-Consensus Measurement)
-
-### 2A. Replace LLM Consensus with Computed Consensus
-
-Currently, the LLM fills `consensus_view` and `edge_type` as free text. Change this:
-
-**Before** (LLM-generated):
-```json
-{
-  "consensus_view": "Goldman calling for $100K BTC, CME FedWatch shows 85% June cut",
-  "edge_type": "contrarian",
-  "edge_rationale": "Our signals suggest bearish pressure from crowded longs"
-}
-```
-
-**After** (computed + LLM-enriched):
-```json
-{
-  "consensus_score": 0.62,
-  "consensus_direction": "bullish",
-  "consensus_components": {
-    "options_skew": 0.45,
-    "funding_7d": 0.78,
-    "top_trader_ls": 0.55,
-    "etf_flows": 0.71,
-    "put_call_ratio": 0.40,
-    "oi_momentum": 0.65
-  },
-  "consensus_summary": "Market is moderately bullish BTC: positive funding (0.78), steady ETF inflows ($340M 5-day), calls favored in options (skew +0.45). Top traders 55% long.",
-  "our_score": -0.35,
-  "our_direction": "bearish",
-  "divergence": -0.97,
-  "divergence_label": "strongly contrarian",
-  "edge_rationale": "Despite bullish consensus, crowded long funding rates historically precede 5-8% corrections within 1 week when >0.05% sustained for 3+ days"
-}
-```
-
-**The divergence is now a number**: `our_score - consensus_score`. This replaces the discrete `edge_type` label with a continuous measurement.
-
-### 2B. Divergence Classification
-
-```
-divergence = our_score - consensus_score
-
-|divergence| > 1.0   → "strongly contrarian" (maximum non-consensus)
-|divergence| > 0.5   → "contrarian"
-|divergence| > 0.2   → "mildly non-consensus"
-|divergence| <= 0.2  → "aligned" (no edge)
-```
-
-### 2C. Update the Composite Scorer
-
-Replace the flat +0.10/-0.05 nudge with a **divergence-scaled bonus**:
-
-```
-# Old: flat nudge
-nudge = +0.10 if contrarian else -0.05 if aligned else 0.0
-
-# New: scaled by divergence magnitude
-divergence = our_score - consensus_score
-abs_div = abs(divergence)
-
-if abs_div > 0.5:
-    nudge = 0.15 * sign(our_score)   # strong conviction bonus for high divergence
-elif abs_div > 0.2:
-    nudge = 0.08 * sign(our_score)   # moderate bonus
-else:
-    nudge = -0.05 * sign(our_score)  # penalty for consensus-following
-```
-
-This makes the bonus proportional to how non-consensus we are, rather than a binary label.
-
-### 2D. Feed Consensus Data into the LLM Prompt
-
-Add the computed consensus score to the narrative extraction prompt so the LLM knows what consensus actually is (instead of guessing):
-
-```
-CONSENSUS DATA (computed from market positioning, not estimated):
-Bitcoin: consensus_score = +0.62 (bullish)
-  - Options skew: +0.45 (calls favored at weekly expiry)
-  - 7-day accumulated funding: +0.078% (longs paying)
-  - Top trader L/S: 1.22 (55% long)
-  - ETF flows 5-day: +$340M (steady inflows)
-  - Put/Call ratio: 0.52 (call-dominated)
-  - Max pain: $94,000 (current price $97,500 — 3.7% above)
-  - OI 7d change: +8.2% (new money entering, directionally aligned)
-
-Ethereum: consensus_score = +0.38 (mildly bullish)
-  - Options skew: +0.20 (slight call preference)
-  - 7-day accumulated funding: +0.042% (moderate)
-  - Top trader L/S: 1.08 (52% long)
-  - ETF flows 5-day: +$45M (modest inflows)
-  ...
-```
-
-Now the LLM doesn't have to guess consensus — it's given the numbers. Its job becomes: **"Given this consensus, what do our 350 signals tell us that the market is missing?"**
-
----
-
-## Phase 3: Improve the "Our View" Signal (Be More Correct)
-
-Being non-consensus only matters if we're right. These changes improve signal quality for the 1-week BTC/ETH horizon.
-
-### 3A. Crypto-Specific Technical Indicators
-
-Current technicals (RSI, MACD, SMA) are generic. Add crypto-specific indicators that are actually predictive at the 1-week horizon:
-
-| Indicator | Why It Matters for 1-Week Crypto |
-|---|---|
-| **Funding rate mean reversion** | When funding >0.05% for 3+ days, historically reverts (and price corrects) within 3-7 days. This is a timing signal, not just a level signal. |
-| **OI vs. price divergence** | Rising OI + flat/falling price = shorts building. Falling OI + rising price = short squeeze exhaustion. Both are 1-3 day leading indicators. |
-| **Liquidation level proximity** | How close is current price to major liquidation clusters? Proximity = magnetic pull. If $2B in long liquidations sit 5% below, there's a structural risk. |
-| **Max pain gravity** | Price tends to converge toward max pain as weekly options expire (Friday 8:00 UTC on Deribit). Distance from max pain on Monday gives a directional pull for the week. |
-| **ETF flow momentum** | 3 consecutive days of outflows historically precede further downside in the following 3-5 days. Conversely for inflows. |
-
-### 3B. Add Exchange Flow Data (On-Chain Edge)
-
-Current on-chain collector only tracks stablecoin supply. Add exchange flow signals:
-
-**Source**: CryptoQuant free dashboard data or their API ($29/mo)
-
-| Signal | Meaning |
-|---|---|
-| BTC exchange netflow positive (5d) | Coins moving to exchanges = selling intent = bearish |
-| BTC exchange netflow negative (5d) | Coins leaving exchanges = accumulation = bullish |
-| Exchange whale ratio > 85% | Top 10 transactions dominate inflows = whale dump incoming |
-
-These are on-chain signals that derivatives traders don't see directly. When exchange flows disagree with funding rate consensus, we have a genuine informational edge.
-
-### 3C. Tighten the 1-Week Exit Framework
-
-Current exit conditions are LLM-generated text ("Take profit at $X, invalidated at $Y"). Make them structured and trackable:
+Add mechanism links and the raw signal data that supports the view.
 
 ```python
-class TradeThesis(BaseModel):
+# models/schemas.py — changes to NonConsensusView
+
+class NonConsensusView(BaseModel):
+    """A specific disagreement with market consensus, with evidence."""
+
     ticker: str
-    direction: str                       # bullish / bearish
-    entry_price: float                   # price at signal generation
-    entry_date: datetime
-
-    # Structured exits
-    take_profit_pct: float               # e.g., +6%
-    stop_loss_pct: float                 # e.g., -3%
-    risk_reward_ratio: float             # computed: TP / SL
-    max_holding_days: int = 7            # hard 1-week cap
-
-    # Consensus context
-    consensus_score_at_entry: float
-    our_score_at_entry: float
-    divergence_at_entry: float
-
-    # For outcome tracking
-    exit_price: float | None = None
-    exit_date: datetime | None = None
-    exit_reason: str | None = None       # "tp_hit", "sl_hit", "time_expired", "invalidated"
-    pnl_pct: float | None = None
+    asset_class: AssetClass
+    consensus_direction: SentimentDirection
+    consensus_narrative: str = ""
+    our_direction: SentimentDirection
+    our_conviction: float = 0.0
+    thesis: str = ""
+    edge_type: str = "contrarian"
+    evidence: list[EvidenceSource] = Field(default_factory=list)
+    independent_source_count: int = 0
+    has_testable_mechanism: bool = False
+    has_timing_edge: bool = False
+    has_catalyst: str = ""
+    invalidation: str = ""
+    validity_score: float = 0.0
+    signal_ids: list[str] = Field(default_factory=list)
+    # --- NEW FIELDS ---
+    supporting_mechanisms: list[str] = Field(default_factory=list)  # mechanism_ids
+    mechanism_stage: str = ""           # earliest active stage: early/mid/late
+    regime_context: str = ""            # how the macro regime relates to this view
+    consensus_quant_score: float = 0.0  # from Phase 1 ConsensusScore
+    consensus_coherence: str = ""       # from Phase 1 ConsensusView — aligned/fractured
 ```
 
-**Key rule**: Every trade must have a risk/reward ratio >= 1.5. If the LLM can't identify a setup with 1.5:1 R:R, the trade doesn't qualify.
+### Step 2: Restructure the pipeline — merge Phase 2 + Phase 3
 
----
-
-## Phase 4: Track Outcomes (Prove We're Correct)
-
-This is the missing piece. Without outcome tracking, we can't know if our non-consensus views are actually correct.
-
-### 4A. How Outcome Tracking Actually Runs
-
-**The problem**: Streamlit apps are stateless — they only execute when someone opens the page. Streamlit Community Cloud won't run background cron jobs. So we need a trigger mechanism.
-
-**The solution**: Outcome scoring runs as **Step 7 of the existing pipeline** — every time `run_weekly.py` executes (whether manually from the dashboard button or from a cron/scheduler), it scores the PREVIOUS week's trades before generating new ones.
-
-**Concrete timeline for a single trade cycle**:
-
-```
-SUNDAY WEEK 1 (pipeline runs):
-┌─────────────────────────────────────────────────────────────────┐
-│ Step 7: Score previous week's trades (if any exist)            │
-│   → Fetch BTC/ETH prices from yfinance for 7 days ago         │
-│   → For each trade from last week:                             │
-│     - Did price hit TP or SL during the week? (check daily     │
-│       high/low from yfinance against TP/SL levels)             │
-│     - If neither hit, use 7-day closing price (time expiry)    │
-│     - Compute P&L %, record exit reason                        │
-│   → Write results to "Outcomes" worksheet in Google Sheets     │
-│   → Update SQLite trade_outcomes table                         │
-│                                                                │
-│ Steps 1-6: Generate THIS week's signals, consensus, trades     │
-│   → New trade theses written to "Trades" worksheet             │
-└─────────────────────────────────────────────────────────────────┘
-
-DURING WEEK 1 (no action needed):
-  Trades are live. No monitoring system needed — we're not
-  auto-executing. The sheet just records what was called.
-
-SUNDAY WEEK 2 (pipeline runs again):
-  Step 7 scores Week 1's trades against actual prices.
-  Steps 1-6 generate Week 2's trades.
-  ...and so on.
-```
-
-**What gets written to Google Sheets**:
-
-**"Trades" worksheet** (written at generation time — Step 6):
-
-| Week | Ticker | Direction | Entry Price | TP % | SL % | R:R | Consensus Score | Our Score | Divergence | Divergence Label | Composite Score |
-|---|---|---|---|---|---|---|---|---|---|---|---|
-| 2026-03-08 | Bitcoin | bearish | $97,500 | -6% | +3% | 2.0 | +0.62 | -0.35 | -0.97 | strongly contrarian | -0.68 |
-| 2026-03-08 | Ethereum | bullish | $3,200 | +8% | -4% | 2.0 | +0.38 | +0.72 | +0.34 | mildly non-consensus | +0.55 |
-
-**"Outcomes" worksheet** (written when NEXT week's pipeline runs — Step 7):
-
-| Week | Ticker | Direction | Entry Price | Exit Price | Exit Reason | P&L % | Direction Correct? | Consensus Score | Our Score | Divergence | Days Held |
-|---|---|---|---|---|---|---|---|---|---|---|---|
-| 2026-03-08 | Bitcoin | bearish | $97,500 | $93,600 | tp_hit | +4.0% | Yes | +0.62 | -0.35 | -0.97 | 4 |
-| 2026-03-08 | Ethereum | bullish | $3,200 | $3,072 | sl_hit | -4.0% | No | +0.38 | +0.72 | +0.34 | 3 |
-
-**Exit reason logic** (checked in order):
-1. **`tp_hit`**: During the 7-day window, did the daily high (for bullish) or daily low (for bearish) reach the TP level? Use intraday high/low from yfinance daily data.
-2. **`sl_hit`**: Same check against SL level. If both TP and SL were hit in the same week, the one that was hit first (by date) wins.
-3. **`time_expired`**: Neither TP nor SL hit within 7 days. P&L = closing price on day 7 vs entry price.
-
-**Outcome validation is opportunistic, not scheduled.** It doesn't wait for Sunday — it checks ALL unvalidated trades every time the app loads or the pipeline runs, and scores any that can be resolved.
-
-**How it works**:
+`run_weekly.py` becomes a two-phase pipeline:
 
 ```python
-def validate_pending_trades():
-    """Called on every dashboard load AND every pipeline run.
-    Scans all trades with exit_price == None and checks if they can be resolved."""
+# run_weekly.py — new structure
 
-    pending = db.get_trades_without_outcomes()  # all unvalidated trades
+def run_pipeline(sources: list[str] | None = None) -> None:
+    """Two-phase pipeline: consensus → non-consensus."""
+    phase1 = run_phase_1(sources)
+    phase2 = run_phase_2(phase1, sources)
+    report = build_report(phase1, phase2)
+    save_report(report)
+    export_to_sheets(report)
 
-    for trade in pending:
-        days_elapsed = (now - trade.entry_date).days
 
-        # Fetch daily OHLC from entry_date to now (or entry_date + 7d, whichever is less)
-        check_end = min(now, trade.entry_date + timedelta(days=7))
-        daily_bars = yfinance.download(trade.ticker, start=trade.entry_date, end=check_end)
+def run_phase_1(sources: list[str] | None = None) -> dict:
+    """Phase 1: Build the consensus picture. (UNCHANGED)"""
+    # ... exactly as today ...
+    return {
+        "consensus_signals": consensus_signals,
+        "quant_scores": quant_scores,
+        "consensus_views": consensus_views,
+        "llm": llm,
+    }
 
-        # Check each day in order: did TP or SL get hit?
-        for day in daily_bars:
-            if trade.direction == "bullish":
-                if day.high >= tp_price:   → record tp_hit on this date, break
-                if day.low <= sl_price:    → record sl_hit on this date, break
-            else:  # bearish
-                if day.low <= tp_price:    → record tp_hit on this date, break
-                if day.high >= sl_price:   → record sl_hit on this date, break
 
-        # If 7 days have passed and neither TP nor SL hit:
-        if days_elapsed >= 7 and no exit recorded:
-            → record time_expired, P&L = day-7 close vs entry price
+def run_phase_2(phase1: dict, sources: list[str] | None = None) -> dict:
+    """Phase 2: Discover non-consensus views + match mechanisms + classify regime."""
+    from ai.chains.non_consensus_discoverer import discover_non_consensus
+    from config.mechanisms import load_mechanisms
+    from ai.chains.mechanism_matcher import match_mechanisms
+    from ai.chains.regime_classifier import classify_regime
 
-        # If < 7 days and neither hit yet:
-        #   → skip, trade is still live. Will check again next time.
+    llm = phase1["llm"]
+
+    # 2.1: Collect and filter alpha signals (unchanged)
+    alpha_signals = collect_signals_by_role("alpha", sources)
+    alpha_signals = filter_stale_signals(alpha_signals)
+
+    all_signals = phase1["consensus_signals"] + alpha_signals
+
+    # 2.2: Match transmission mechanisms (moved from Phase 3)
+    mechanisms = load_mechanisms()
+    active_scenarios = []
+    if mechanisms:
+        active_scenarios = match_mechanisms(all_signals, mechanisms, llm)
+
+    # 2.3: Classify regime (moved from Phase 3)
+    # Regime now classified from consensus views + active scenarios,
+    # not from narratives (which no longer exist)
+    regime, regime_rationale, regime_confidence = classify_regime_from_consensus(
+        phase1["consensus_views"], active_scenarios, llm
+    )
+
+    # 2.4: Discover non-consensus views (unchanged core, but gets mechanism context)
+    non_consensus_views = discover_non_consensus(
+        consensus_views=phase1["consensus_views"],
+        alpha_signals=alpha_signals,
+        llm=llm,
+    )
+
+    # 2.5: Enrich NC views with mechanism links and consensus data
+    non_consensus_views = enrich_nc_views(
+        non_consensus_views,
+        active_scenarios,
+        phase1["quant_scores"],
+        phase1["consensus_views"],
+        regime,
+    )
+
+    return {
+        "alpha_signals": alpha_signals,
+        "all_signals": all_signals,
+        "non_consensus_views": non_consensus_views,
+        "active_scenarios": active_scenarios,
+        "regime": regime,
+        "regime_rationale": regime_rationale,
+    }
 ```
 
-**Key behavior**:
-- A trade entered on Wednesday can be validated as early as Thursday (if TP/SL hit on day 1)
-- No need to wait for Sunday — every dashboard load checks for resolvable trades
-- Trades that are still live (< 7 days, no TP/SL hit) are skipped and re-checked next time
-- Results written to both SQLite and Google Sheets "Outcomes" worksheet immediately upon resolution
+### Step 3: Implement NC view enrichment
 
-**In-app background scheduler** (runs while Streamlit is live):
+Link NC views to supporting mechanisms and consensus context:
 
 ```python
-# In app.py — start a background thread on app load
-import threading, time
+# run_weekly.py (or new file: analysis/nc_enricher.py)
 
-def background_validator():
-    """Runs every 6 hours while the app is alive.
-    Checks for trades that can be validated and scores them."""
-    while True:
-        try:
-            validate_pending_trades()
-            sync_outcomes_to_sheets()  # push any new outcomes to Google Sheets
-        except Exception as e:
-            logger.error(f"Background validation failed: {e}")
-        time.sleep(6 * 3600)  # check every 6 hours
+def enrich_nc_views(
+    nc_views: list[NonConsensusView],
+    active_scenarios: list[ActiveScenario],
+    quant_scores: list[ConsensusScore],
+    consensus_views: list[ConsensusView],
+    regime: EconomicRegime,
+) -> list[NonConsensusView]:
+    """Enrich NC views with mechanism links, quant scores, and regime context."""
 
-# Start once per Streamlit session (guarded by session_state to avoid duplicates)
-if "validator_started" not in st.session_state:
-    thread = threading.Thread(target=background_validator, daemon=True)
-    thread.start()
-    st.session_state.validator_started = True
+    quant_by_ticker = {cs.ticker: cs for cs in quant_scores}
+    cv_by_ticker = {cv.ticker: cv for cv in consensus_views}
+
+    for ncv in nc_views:
+        # Link supporting mechanisms
+        supporting = []
+        earliest_stage = "complete"
+        stage_order = {"early": 0, "mid": 1, "late": 2, "complete": 3}
+
+        for scenario in active_scenarios:
+            # Does this mechanism impact this ticker in the NC direction?
+            for impact in scenario.asset_impacts:
+                if impact.ticker == ncv.ticker and impact.direction == ncv.our_direction:
+                    supporting.append(scenario.mechanism_id)
+                    if stage_order.get(scenario.current_stage, 3) < stage_order.get(earliest_stage, 3):
+                        earliest_stage = scenario.current_stage
+                    break
+
+        ncv.supporting_mechanisms = supporting
+        ncv.mechanism_stage = earliest_stage if supporting else ""
+
+        # Attach quant consensus score
+        qs = quant_by_ticker.get(ncv.ticker)
+        if qs:
+            ncv.consensus_quant_score = qs.consensus_score
+
+        # Attach coherence from consensus view
+        cv = cv_by_ticker.get(ncv.ticker)
+        if cv:
+            ncv.consensus_coherence = cv.consensus_coherence
+
+        # Regime context
+        ncv.regime_context = regime.value
+
+    return nc_views
 ```
 
-**What this gives you**:
-- Open the dashboard on any day → pending trades get checked and validated if resolvable
-- Leave the dashboard open → background thread checks every 6 hours
-- Close the dashboard → no validation happens (but nothing is lost — next time you open it, all pending trades get scanned)
-- No external cron needed unless you want validation to happen when the app is closed (GitHub Actions can handle that later)
+### Step 4: Adapt regime classification
 
-**Trade lifecycle**:
+Currently regime is classified from narratives (which won't exist anymore). Change to classify from consensus views + active scenarios:
+
+```python
+# ai/chains/regime_classifier.py — new function
+
+def classify_regime_from_consensus(
+    consensus_views: list[ConsensusView],
+    active_scenarios: list[ActiveScenario],
+    llm: BaseChatModel,
+) -> tuple[EconomicRegime, str, float]:
+    """Classify regime from consensus picture and active mechanisms."""
+    # Build context text from consensus views
+    consensus_text = "\n".join(
+        f"{cv.ticker}: {cv.consensus_direction.value} "
+        f"(quant={cv.quant_score:+.2f}, coherence={cv.consensus_coherence})\n"
+        f"  Positioning: {cv.positioning_summary}\n"
+        f"  Narrative: {cv.market_narrative[:200]}"
+        for cv in consensus_views
+    )
+
+    # Active scenarios as context
+    scenario_text = "\n".join(
+        f"[{s.mechanism_name}] ({s.category}, prob={s.probability:.0%}, "
+        f"stage={s.current_stage}): {s.trigger_evidence[:200]}"
+        for s in active_scenarios
+    ) if active_scenarios else "No active transmission mechanisms."
+
+    # Use existing REGIME_CLASSIFICATION_PROMPT with adapted input
+    # (or create a new prompt that takes consensus + scenarios instead of narratives)
+    chain = REGIME_FROM_CONSENSUS_PROMPT | llm
+    response = chain.invoke({
+        "consensus_views": consensus_text,
+        "active_scenarios": scenario_text,
+    })
+
+    # ... parse response same as today ...
+```
+
+### Step 5: Simplify the WeeklyReport model
+
+```python
+# models/schemas.py — simplified WeeklyReport
+
+class WeeklyReport(BaseModel):
+    """Complete weekly macro-pulse report."""
+
+    id: str = Field(default_factory=lambda: "")
+    week_start: datetime
+    week_end: datetime
+    generated_at: datetime = Field(default_factory=datetime.utcnow)
+    regime: EconomicRegime = EconomicRegime.TRANSITION
+    regime_rationale: str = ""
+    signal_count: int = 0
+    summary: str = ""
+    # Phase 1: Consensus
+    consensus_scores: list[ConsensusScore] = Field(default_factory=list)
+    consensus_views: list[ConsensusView] = Field(default_factory=list)
+    # Phase 2: Non-Consensus + Mechanisms
+    non_consensus_views: list[NonConsensusView] = Field(default_factory=list)
+    active_scenarios: list[ActiveScenario] = Field(default_factory=list)
+    # --- REMOVED ---
+    # narratives, asset_scores, scenario_views, composite_scores,
+    # divergence_metrics, trade_theses
+```
+
+Keep the old fields as Optional with defaults for backwards compatibility when loading historical reports from the database. But new reports won't populate them.
+
+### Step 6: Rebuild the dashboard
+
+The dashboard becomes two sections:
+
+**Section A: Consensus Context** (Phase 1 — existing, minor tweaks)
+- Consensus cards per asset (unchanged)
+- Consensus meter showing quant score breakdown (simplified — no "our score" marker)
+
+**Section B: Non-Consensus Views** (Phase 2 — the product, majorly expanded)
+
+Each NC view becomes a rich, expandable card:
+
+```python
+# dashboard/actionable_view.py — new NC card structure
+
+def _render_nc_view_card(
+    ncv: NonConsensusView,
+    consensus_view: ConsensusView | None,
+    consensus_score: ConsensusScore | None,
+    active_scenarios: list[ActiveScenario],
+    signals: list[Signal],  # for drill-down
+) -> None:
+    """Render a single non-consensus view as a rich card."""
+
+    # --- Header: ticker, direction arrow, edge badge, validity ---
+    # Bitcoin   CONSENSUS: BULLISH → OUR VIEW: BEARISH   [CONTRARIAN]   validity: 78%
+
+    # --- Thesis block ---
+    # The core disagreement in 2-3 sentences
+
+    # --- Consensus context (collapsible) ---
+    # What the market believes:
+    #   Positioning: funding +0.04%, top traders 62% long, ETF inflows +$200M
+    #   Narrative: institutional adoption, post-halving supply dynamics
+    #   Coherence: ALIGNED (positioning and narrative agree)
+    #   Priced in: continued ETF inflows, stable macro
+    #   Not priced in: tariff escalation, FOMC surprise
+    #   Quant score: +0.45 breakdown [options_skew: +0.3] [funding_7d: +0.8] ...
+
+    # --- Evidence block (always visible) ---
+    # Each evidence source with:
+    #   ✓ [onchain] Stablecoin supply down 2.1% — capital leaving crypto ecosystem
+    #     └─ Signal: [sig_123] "USDT market cap declined from $108.2B to $105.9B..."
+    #        Source: onchain | Date: 2026-03-04 | Strength: 0.8
+    #   ✓ [spreads] HYG/LQD credit spread z-score at -1.5
+    #     └─ Signal: [sig_456] "Credit spreads widened to..."
+    #        Source: spreads | Date: 2026-03-05 | Strength: 0.6
+
+    # --- Transmission mechanisms (collapsible) ---
+    # Supporting mechanisms:
+    #   [Crypto Leverage Flush] prob: 65%, stage: EARLY
+    #     Chain: ① Funding extreme (confirmed) → ② Liquidation cascade (emerging)
+    #            → ③ Price capitulation (not started) → ④ Bounce (not started)
+    #     Watch: funding rate trajectory, OI collapse >20%
+    #
+    #   [Risk-Off Flight to Safety] prob: 45%, stage: MID
+    #     Chain: ① Credit stress (confirmed) → ② Risk repricing (emerging)
+    #            → ③ Safe haven bid (not started)
+    #     Watch: VIX term structure, TLT flows
+
+    # --- Trade parameters ---
+    # Catalyst: FOMC meeting March 19 — hawkish surprise risk
+    # Invalidation: stablecoin supply stabilizes AND credit spreads normalize
+    # Conviction: 0.70 | Validity: 0.78 | Independent sources: 3
+
+    # --- Quality flags ---
+    # ✓ Testable mechanism  ✓ Timing edge  ✓ Has catalyst
+    # Consensus coherence: ALIGNED (strong consensus — needs stronger evidence)
+```
+
+### Step 7: Signal drill-down
+
+Store signal references so the dashboard can show the actual signal content behind each evidence citation.
+
+The NC view already has `signal_ids`. We need to make the raw signals available to the dashboard. Options:
+
+**Option A: Store signals in the report** (simple, increases report size)
+```python
+class WeeklyReport(BaseModel):
+    # ... existing fields ...
+    signals: list[Signal] = Field(default_factory=list)  # all collected signals
+```
+
+**Option B: Load signals from DB on demand** (more complex, better for large signal sets)
+```python
+# storage/store.py — already stores signals in the signals table
+# Dashboard calls load_signals_for_report(report_id) when user expands a card
+```
+
+Recommendation: **Option A** for simplicity. 300-500 signals × ~500 bytes each = ~250KB. Negligible.
+
+### Step 8: Update storage layer
+
+```python
+# storage/store.py — changes to save_report() and load_latest_report()
+
+# save_report():
+#   - Stop writing to: narratives, narrative_signals, weekly_asset_scores,
+#     composite_scores, divergence_metrics, trade_theses tables
+#   - Keep writing to: weekly_reports, signals, consensus_scores,
+#     consensus_views, non_consensus_views, active_scenarios
+#   - Add: new NC view fields (supporting_mechanisms, mechanism_stage, etc.)
+
+# load_latest_report():
+#   - Stop loading: narratives, weekly_asset_scores, composite_scores,
+#     divergence_metrics, trade_theses
+#   - Keep loading: consensus_scores, consensus_views, non_consensus_views,
+#     active_scenarios, signals
+#   - Handle backwards compat: old reports in DB will have composite_scores
+#     and narratives — load them into Optional fields if present
+```
+
+The `non_consensus_views` table needs new columns:
+
+```sql
+ALTER TABLE non_consensus_views ADD COLUMN supporting_mechanisms TEXT DEFAULT '[]';
+ALTER TABLE non_consensus_views ADD COLUMN mechanism_stage TEXT DEFAULT '';
+ALTER TABLE non_consensus_views ADD COLUMN regime_context TEXT DEFAULT '';
+ALTER TABLE non_consensus_views ADD COLUMN consensus_quant_score REAL DEFAULT 0.0;
+ALTER TABLE non_consensus_views ADD COLUMN consensus_coherence TEXT DEFAULT '';
+```
+
+### Step 9: Update Sheets export
+
+```python
+# exports/sheets.py — simplify
+
+# Keep worksheets:
+#   Summary (week, regime, signal count, summary)
+#   Consensus (quant scores with component breakdown)
+#   Consensus Views (Phase 1 positioning + narrative + coherence)
+#   Non-Consensus Views (expanded: thesis, evidence, mechanisms, quality flags)
+#   Active Mechanisms (chain progress, asset impacts, watch items)
+
+# Remove worksheets:
+#   Asset Scores (was composite scores — gone)
+#   Scenarios (replaced by Active Mechanisms with richer detail)
+#   Trades (no more trade thesis generation)
+```
+
+### Step 10: Update app.py
+
+```python
+# app.py — simplify sidebar
+
+# Remove:
+#   - Direction filter (BULLISH/BEARISH/ALL) — NC views are shown as-is
+#   - MIN PROBABILITY slider — not applicable
+#   - Asset class multiselect — keep but simplify (just filter NC view cards)
+
+# Keep:
+#   - RUN WEEKLY PIPELINE button
+#   - SYNC TO SHEETS button
+#   - Asset class filter (simplified)
+
+# Add:
+#   - "Show consensus detail" toggle (expand/collapse Phase 1 section)
+```
+
+### Step 11: Handle the "zero NC views" case
+
+When Phase 2 finds no valid non-consensus views (all filtered by ≥2 source requirement), the dashboard should clearly say so:
 
 ```
-Day 0 (Sunday): Pipeline runs → trade generated → status: LIVE
-Day 1-6: Each dashboard load checks if TP/SL hit → if yes: RESOLVED
-Day 7: Trade auto-expires if still live → status: RESOLVED (time_expired)
-Day 8+: Trade is in the outcomes log, contributes to performance metrics
+"No valid non-consensus views this week.
+
+Our alpha signals agree with market consensus across all assets. This means
+either consensus is correct (no edge) or our signal coverage is insufficient
+to identify a disagreement.
+
+Active consensus: [summary of Phase 1 consensus views]
+Active mechanisms: [list of transmission mechanisms, which are informational
+even without NC views]"
 ```
 
-### 4B. Edge Validation Dashboard
+This is the honest answer. If we can't find a validated disagreement, we shouldn't manufacture one. No trade is a valid position.
 
-Track these metrics over time (displayed in a new "Performance" tab in the Streamlit dashboard):
+## File Change Summary
 
-| Metric | What It Tells Us |
+| File | Action |
 |---|---|
-| **Hit rate by divergence bucket** | Are high-divergence (strongly contrarian) calls correct more often? |
-| **Average P&L by edge type** | Do contrarian trades make more money on average? |
-| **Consensus accuracy** | How often does consensus direction match actual 1-week move? (Baseline to beat) |
-| **Signal source attribution** | Which consensus components were most predictive of 1-week moves? |
-| **Composite score calibration** | Is a +0.8 composite actually more correct than a +0.4? |
+| `models/schemas.py` | Add fields to NonConsensusView, simplify WeeklyReport |
+| `run_weekly.py` | Merge Phase 2+3 into Phase 2, remove Phase 3 |
+| `analysis/nc_enricher.py` | **NEW** — enrich NC views with mechanism/consensus links |
+| `ai/chains/regime_classifier.py` | Add `classify_regime_from_consensus()` |
+| `ai/prompts/templates.py` | Add `REGIME_FROM_CONSENSUS_PROMPT` |
+| `dashboard/actionable_view.py` | Rewrite — NC-centric view with drill-down |
+| `dashboard/styles.py` | Update CSS for new card structure |
+| `storage/store.py` | Update save/load, add new NC columns |
+| `exports/sheets.py` | Simplify to 5 worksheets |
+| `app.py` | Simplify sidebar, update render call |
+| `analysis/sentiment_aggregator.py` | Dead code (keep for legacy pipeline) |
+| `analysis/composite_scorer.py` | Dead code (keep for legacy pipeline) |
+| `ai/chains/narrative_extractor.py` | Remove `extract_narratives_from_nc_views()` |
 
-These metrics only become meaningful after 4+ weeks (8+ trades minimum for BTC+ETH). Until then, the dashboard shows the raw outcome log.
+## Migration Notes
 
-### 4C. Feedback Loop (Later — after 8-12 weeks of data)
+- Old reports in the database should still load. Keep deprecated fields as Optional in the WeeklyReport model with default empty lists.
+- The legacy pipeline (`run_pipeline_legacy()`) can stay for backwards compatibility but should not be the default.
+- The `non_consensus_views` table needs ALTER TABLE for new columns; SQLite handles this gracefully with defaults.
+- Trade outcome tracking (background validator in app.py) becomes dead code since we no longer generate trade theses. Remove the background thread.
 
-Once we have enough outcome data:
-- Shift consensus component weights from equal toward whichever components best predicted outcomes
-- Recalibrate composite score weights based on which pillar (narrative/technical/scenario) was most correct
-- Identify systematic biases (e.g., are we always too bullish ETH? always wrong on funding rate signals?)
-- This is NOT automated — it's a manual review of the outcome data + a config change to the weights
+## What This Achieves
 
----
-
-## Phase 5: Pipeline Integration
-
-### 5A. Updated `run_weekly.py` Pipeline
-
+**Before (3-phase):**
 ```
-Step 1:   Collect signals (existing 8 enabled collectors)
-Step 1b:  NEW — Collect consensus data (options, derivatives, ETF flows)
-Step 1c:  NEW — Compute consensus scores for BTC and ETH
-Step 2:   Extract narratives (LLM) — NOW with consensus data in prompt
-Step 2b:  Match transmission mechanisms (LLM)
-Step 3:   Classify regime (LLM)
-Step 4:   Aggregate asset scores (deterministic)
-Step 4b:  Compute technicals (existing + new crypto indicators)
-Step 4c:  Aggregate scenarios (deterministic)
-Step 4d:  Composite scoring — NOW with divergence-scaled nudge
-Step 4e:  NEW — Generate structured trade theses (entry, TP, SL, R:R)
-Step 5:   Generate summary (LLM)
-Step 6:   Save report + trade theses to DB
-Step 7:   NEW — Score previous week's trades against actual outcomes
+350 signals → consensus → NC discovery → narratives → scoring → trades → dashboard
+             (good)       (good)         (noise)      (fights NC)  (diluted)  (confusing)
 ```
 
-### 5B. Updated Dashboard
+**After (2-phase):**
+```
+350 signals → consensus → NC discovery + mechanisms → dashboard
+             (context)    (the product)                (clear, deep)
+```
 
-Add to the asset card:
-- **Consensus meter**: Visual bar showing consensus_score (-1 to +1) with our_score overlaid
-- **Divergence badge**: "STRONGLY CONTRARIAN" / "CONTRARIAN" / "MILDLY NON-CONSENSUS" / "ALIGNED"
-- **Consensus breakdown**: Expandable section showing each component (options skew, funding, L/S, ETF flows)
-- **Trade thesis**: Structured entry/TP/SL/R:R (not just LLM text)
-- **Historical accuracy**: After 4+ weeks, show hit rate for similar setups
+The NC view becomes the atomic unit of output. Each one is a complete, self-contained trade thesis with:
+- What the market believes (consensus context)
+- Why we disagree (thesis + evidence + citations)
+- The causal mechanism (transmission chain + stage)
+- When we're wrong (invalidation)
+- How confident we are (conviction × validity)
 
-### 5C. Updated Schemas
-
-New models to add to `models/schemas.py`:
-- `ConsensusScore` — per-asset consensus measurement
-- `TradeThesis` — structured trade with entry/exit/R:R
-- `TradeOutcome` — realized P&L and exit reason
-- `DivergenceMetrics` — our_score vs consensus_score with classification
-
-New DB tables in `storage/store.py`:
-- `consensus_scores` — weekly consensus snapshots
-- `trade_theses` — all generated trades
-- `trade_outcomes` — realized results
+No re-scoring. No dilution. No backward-looking technicals fighting the thesis. The signal IS the trade.
 
 ---
 
-## Implementation Order
+## Detailed TODO List
 
-### Sprint 1: Consensus Data Collection (the foundation)
-1. `collectors/options_consensus.py` — Deribit options API integration
-2. `collectors/derivatives_consensus.py` — Multi-exchange funding/L-S/OI via ccxt
-3. `collectors/etf_flows.py` — ETF flow data (SoSoValue or CoinGlass)
-4. `analysis/consensus_scorer.py` — Aggregate into single consensus score
-5. New schemas + DB tables for consensus data
+### Milestone 1: Schema & Model Changes
 
-### Sprint 2: Divergence Measurement + Prompt Update
-6. Feed consensus scores into narrative extraction prompt
-7. Compute divergence (our_score - consensus_score) per asset
-8. Replace flat contrarian nudge with divergence-scaled bonus in composite scorer
-9. Update dashboard to show consensus meter + divergence
+These are foundational — everything else depends on the models being right.
 
-### Sprint 3: Structured Trades + Outcome Tracking
-10. `TradeThesis` generation with structured TP/SL/R:R
-11. `analysis/outcome_tracker.py` — weekly P&L recording
-12. Edge validation metrics + dashboard section
-13. Google Sheets export update with consensus + outcomes
+- [x] **1.1** Add new fields to `NonConsensusView` in `models/schemas.py`
+  - `supporting_mechanisms: list[str]` (mechanism IDs)
+  - `mechanism_stage: str` (earliest active stage)
+  - `regime_context: str`
+  - `consensus_quant_score: float`
+  - `consensus_coherence: str`
 
-### Sprint 4: Signal Quality Improvements
-14. Add crypto-specific technical indicators (funding mean reversion, OI divergence, max pain gravity)
-15. Add exchange flow collector (CryptoQuant or equivalent)
-16. Calibrate weights based on initial outcome data
+- [x] **1.2** Simplify `WeeklyReport` in `models/schemas.py`
+  - Make `narratives`, `asset_scores`, `composite_scores`, `divergence_metrics`, `trade_theses`, `scenario_views` Optional with default `None` (backwards compat for loading old reports)
+  - New reports won't populate these fields
+  - Keep `consensus_scores`, `consensus_views`, `non_consensus_views`, `active_scenarios` as required
+
+- [x] **1.3** Remove `TradeThesis` from the report flow
+  - Keep the model class (needed to load old reports from DB)
+  - It's just no longer produced by the pipeline
 
 ---
 
-## What This Changes
+### Milestone 2: Pipeline Restructure (`run_weekly.py`)
 
-**Before**: "We think we're contrarian because the LLM said so."
+Merge Phase 3 into Phase 2, delete the scoring/narrative chain.
 
-**After**: "Consensus is +0.62 bullish (options skew +0.45, funding accumulated +0.078%, ETF inflows $340M/5d). Our signals say -0.35 bearish. Divergence = -0.97. Last 8 times divergence was this negative, 6 were correct within 1 week, average P&L +4.2%."
+- [x] **2.1** Move mechanism matching from `run_phase_3()` into `run_phase_2()`
+  - Import `load_mechanisms` and `match_mechanisms` in Phase 2
+  - Call after alpha signal collection, before NC discovery
+  - Pass `all_signals` (consensus + alpha) to `match_mechanisms()`
 
-That's the difference between storytelling and a system.
+- [x] **2.2** Move regime classification from `run_phase_3()` into `run_phase_2()`
+  - Create new `classify_regime_from_consensus()` function (see Milestone 3)
+  - Call after mechanism matching
+  - Input: consensus_views + active_scenarios (not narratives)
+
+- [x] **2.3** Create `enrich_nc_views()` function
+  - New file `analysis/nc_enricher.py`
+  - For each NC view: find active scenarios where an asset impact matches the NC ticker + direction
+  - Attach mechanism IDs, earliest mechanism stage
+  - Attach consensus quant score and coherence from Phase 1
+
+- [x] **2.4** Call `enrich_nc_views()` at end of Phase 2
+  - After NC discovery, after mechanism matching
+  - Before returning Phase 2 results
+
+- [x] **2.5** Create new `build_report()` function
+  - Replaces the report-building logic in `run_phase_3()`
+  - Assembles `WeeklyReport` from Phase 1 + Phase 2 outputs only
+  - No narratives, no composite scores, no trade theses
+  - Generate summary from consensus views + NC views (simple LLM call or template)
+
+- [x] **2.6** Update `run_pipeline()` to call Phase 1 → Phase 2 → `build_report()` → save → export
+  - Delete `run_phase_3()` entirely
+  - Keep `run_pipeline_legacy()` as-is for backwards compat (optional — could also delete)
+
+- [x] **2.7** Remove dead imports from `run_weekly.py`
+  - `extract_narratives_from_nc_views`
+  - `aggregate_asset_scores`
+  - `compute_composite_scores`
+  - `compute_divergence`
+  - `generate_trade_theses`
 
 ---
 
-## Cost
+### Milestone 3: Regime Classification Rework
 
-| Item | Cost | Priority |
-|---|---|---|
-| Deribit API | Free | Sprint 1 |
-| ccxt (Binance/Bybit/OKX) | Free | Sprint 1 |
-| SoSoValue ETF API | Free (limited) | Sprint 1 |
-| CoinGlass API | $29/mo (if SoSoValue insufficient) | Sprint 1 fallback |
-| CryptoQuant API | $29/mo (for exchange flows) | Sprint 4 |
-| Total minimum | $0/mo | |
-| Total recommended | $29-58/mo | |
+- [x] **3.1** Create `REGIME_FROM_CONSENSUS_PROMPT` in `ai/prompts/templates.py`
+  - System prompt: classify regime from consensus positioning/narrative + active transmission mechanisms
+  - Human prompt: takes consensus_views_text + active_scenarios_text
+  - Same output schema as current (regime, rationale, confidence, key_indicators)
+
+- [x] **3.2** Create `classify_regime_from_consensus()` in `ai/chains/regime_classifier.py`
+  - Formats consensus views into text (direction, quant score, positioning summary, narrative)
+  - Formats active scenarios into text (mechanism name, category, probability, stage, trigger evidence)
+  - Calls LLM with `REGIME_FROM_CONSENSUS_PROMPT`
+  - Returns `(EconomicRegime, str, float)` same as current `classify_regime()`
+
+- [x] **3.3** Generate weekly summary from consensus + NC views
+  - New `SUMMARY_FROM_NC_VIEWS_PROMPT` or adapt `WEEKLY_SUMMARY_PROMPT`
+  - Input: regime, consensus views, NC views, active mechanisms
+  - Output: 3-5 sentence executive summary
 
 ---
 
-## Resolved Decisions
+### Milestone 4: Storage Layer Updates
 
-1. **Consensus component weights**: Equal-weighted (1/6 each). Let outcome data guide rebalancing after 8-12 weeks.
+- [x] **4.1** Add new columns to `non_consensus_views` table in `init_db()`
+  - `supporting_mechanisms TEXT DEFAULT '[]'`
+  - `mechanism_stage TEXT DEFAULT ''`
+  - `regime_context TEXT DEFAULT ''`
+  - `consensus_quant_score REAL DEFAULT 0.0`
+  - `consensus_coherence TEXT DEFAULT ''`
+  - Use `ALTER TABLE ... ADD COLUMN` with try/except for existing DBs
 
-2. **Normalization window**: 30-day rolling. Captures current vol regime without being too noisy or too stale for 7-day forecasting.
+- [x] **4.2** Update `save_report()` in `store.py`
+  - Write new NC view fields to DB
+  - Stop writing to: `narratives`, `narrative_signals`, `weekly_asset_scores`, `composite_scores`, `trade_theses` tables (skip these inserts when the report doesn't have them)
+  - Keep writing: `weekly_reports`, `signals`, `consensus_scores`, `consensus_views`, `non_consensus_views`, `active_scenarios`
 
-3. **ETF flow data source**: Start free (SoSoValue API + free dashboard fallbacks). No paid APIs until the full consensus signal is validated over 4+ weeks of outcome data.
+- [x] **4.3** Update `load_latest_report()` in `store.py`
+  - Load new NC view fields from DB
+  - Make loading of narratives, composite_scores, divergence_metrics, trade_theses conditional (only if tables have data for this report — backwards compat)
+  - Stop recomputing divergence metrics on the fly (no longer needed)
 
-4. **Outcome tracking**: Runs as Step 7 of the existing `run_weekly.py` pipeline — scores last week's trades every time the pipeline runs. Results written to a new "Outcomes" worksheet in Google Sheets. Triggered manually via the dashboard button for now, with GitHub Actions cron as a later automation option. See Phase 4A for full details.
+- [x] **4.4** Optionally store full signal list with report
+  - Add signals to `WeeklyReport` model (for dashboard drill-down)
+  - Or: add `load_signals_for_report(report_id)` function to `store.py`
+  - Decision: store on report for simplicity (signals table already exists, just need to load them)
+
+---
+
+### Milestone 5: Dashboard Rewrite
+
+This is the biggest milestone — the entire dashboard UX changes.
+
+#### 5a: Remove old sections
+
+- [x] **5a.1** Remove `_render_scenario_view()` function
+- [x] **5a.2** Remove `_render_legacy_view()` function
+- [x] **5a.3** Remove `_consensus_meter_html()` function (or simplify — see 5b.2)
+- [x] **5a.4** Remove `_trade_thesis_html()` function
+- [x] **5a.5** Remove all asset card rendering (BULLISH/BEARISH/NEUTRAL grouping, composite score display, NC badge, score breakdown)
+- [x] **5a.6** Remove the PERFORMANCE tab (was for trade outcomes — no longer relevant)
+
+#### 5b: Simplify consensus section
+
+- [x] **5b.1** Keep `_render_consensus_section()` mostly as-is
+  - Consensus cards with direction, quant score, coherence, positioning, narrative, priced-in, not-priced-in
+  - Make it collapsible (default collapsed — it's context, not the product)
+
+- [x] **5b.2** Simplify consensus meter
+  - Show only the consensus position (teal marker), remove "our score" marker
+  - Show component breakdown (options_skew, funding_7d, etc.)
+  - Remove divergence badge (no divergence concept without composite scores)
+
+#### 5c: Build new NC view cards
+
+- [x] **5c.1** Create `_render_nc_view_card()` function — the main card
+  - Header: ticker, direction arrow (consensus → ours), edge type badge, validity %
+  - Thesis: the core disagreement (always visible, 2-3 sentences)
+  - Conviction bar + validity bar side by side
+  - Quality flags row: ✓/✗ for testable mechanism, timing edge, has catalyst
+
+- [x] **5c.2** Create evidence drill-down section within NC card
+  - Each `EvidenceSource` rendered with:
+    - Source badge, summary, strength indicator
+    - Expandable: full signal content, signal ID, signal date, signal URL (if any)
+  - Requires signals to be available (from report or loaded from DB)
+
+- [x] **5c.3** Create mechanism drill-down section within NC card
+  - For each supporting mechanism:
+    - Mechanism name, category, probability, stage badge (EARLY/MID/LATE)
+    - Chain progress: numbered steps with status icons (confirmed ✓ / emerging ◐ / not started ○ / invalidated ✗)
+    - Each step shows evidence text if available
+    - Watch items list
+    - Confirmation status + invalidation risk
+  - Collapsible, default collapsed
+
+- [x] **5c.4** Create consensus context section within NC card
+  - Shows the Phase 1 consensus view for this specific ticker
+  - Quant score with component breakdown
+  - Positioning summary + narrative summary
+  - Coherence badge
+  - Priced-in / not-priced-in chips
+  - Collapsible, default collapsed
+
+- [x] **5c.5** Create trade parameters section within NC card
+  - Catalyst (with date if available)
+  - Invalidation condition
+  - Conviction, validity score, independent source count
+  - Always visible (bottom of card)
+
+#### 5d: Assemble the new dashboard layout
+
+- [x] **5d.1** Update `render_actionable_view()` entry point
+  - Render regime banner (unchanged)
+  - Single tab (remove PERFORMANCE tab) or keep tabs as VIEWS | CONSENSUS DETAIL
+  - Render consensus section (collapsible context)
+  - Render NC views section (the product)
+  - Render active mechanisms summary (informational — even if no NC views reference them)
+  - Handle "zero NC views" case with honest messaging
+
+- [x] **5d.2** Handle zero NC views gracefully
+  - Show message: "No valid non-consensus views this week"
+  - Still show consensus section and active mechanisms as informational context
+
+- [x] **5d.3** Add asset class filter support to NC view rendering
+  - Filter NC view cards by selected asset classes (from sidebar)
+
+---
+
+### Milestone 6: CSS / Styling
+
+- [x] **6.1** Add CSS for new NC card structure in `dashboard/styles.py`
+  - NC card container (border-left colored by edge type)
+  - Evidence item rows with strength indicators
+  - Mechanism chain progress (step indicators with status colors)
+  - Conviction/validity bars (horizontal, colored)
+  - Quality flag chips (green checkmark / red X)
+  - Collapsible section styling
+
+- [x] **6.2** Remove CSS for deprecated components
+  - Asset cards (composite score display)
+  - BULLISH/BEARISH/NEUTRAL section headers
+  - Trade thesis cards
+  - NC badge (no longer needed — everything is NC)
+
+---
+
+### Milestone 7: Sheets Export Update
+
+- [x] **7.1** Update `export_report()` in `exports/sheets.py`
+  - Keep: Summary, Consensus, Consensus Views worksheets
+  - Expand: Non-Consensus Views worksheet (add mechanism links, quality flags, consensus quant score)
+  - Add: Active Mechanisms worksheet (mechanism name, category, probability, stage, chain progress, asset impacts, watch items)
+  - Remove: Asset Scores, Scenarios, Trades worksheets
+
+- [x] **7.2** Remove `sync_trades_to_sheets()` function
+  - No longer generating trades, so nothing to sync
+
+---
+
+### Milestone 8: App.py Cleanup
+
+- [x] **8.1** Remove background trade validator thread
+  - Delete `_background_validator()` function
+  - Delete the `if "validator_started" not in st.session_state` block
+
+- [x] **8.2** Simplify sidebar
+  - Keep: RUN WEEKLY PIPELINE button, SYNC TO SHEETS button, asset class filter
+  - Remove: direction filter radio (BULLISH/BEARISH/ALL)
+  - Remove: MIN PROBABILITY slider
+  - Add: "Show consensus detail" toggle (optional — controls whether consensus section is expanded)
+
+- [x] **8.3** Update `render_actionable_view()` call signature
+  - Remove `direction_filter` and `min_threshold` parameters
+  - Keep `selected_assets` for asset class filtering
+
+---
+
+### Milestone 9: Cleanup Dead Code
+
+- [x] **9.1** Mark `analysis/sentiment_aggregator.py` as legacy
+  - Add docstring: "Legacy — only used by run_pipeline_legacy()"
+  - Or delete if legacy pipeline is also removed
+
+- [x] **9.2** Mark `analysis/composite_scorer.py` as legacy
+  - Same treatment as sentiment_aggregator
+
+- [x] **9.3** Remove `extract_narratives_from_nc_views()` from `ai/chains/narrative_extractor.py`
+  - Keep `extract_narratives()` (used by legacy pipeline)
+  - Remove the NC-specific variant
+
+- [x] **9.4** Clean up `models/schemas.py`
+  - Add `# LEGACY` comment to deprecated models (WeeklyAssetScore, CompositeAssetScore, DivergenceMetrics)
+  - Do NOT delete them — needed for loading old reports from DB
+
+- [x] **9.5** Remove the `NARRATIVE_FROM_NC_VIEWS_PROMPT` from `ai/prompts/templates.py`
+  - No longer used
+
+---
+
+### Milestone 10: Testing & Validation
+
+- [x] **10.1** Run Phase 1 → Phase 2 pipeline end-to-end
+  - Verify consensus scores, consensus views produced correctly
+  - Verify NC discovery still works
+  - Verify mechanism matching runs in Phase 2
+  - Verify regime classification works from consensus + scenarios
+
+- [x] **10.2** Verify NC enrichment
+  - Check that supporting_mechanisms are correctly linked
+  - Check that consensus_quant_score and consensus_coherence populate
+
+- [x] **10.3** Verify storage round-trip
+  - `save_report()` writes new NC fields
+  - `load_latest_report()` reads them back correctly
+  - Old reports in DB still load without errors (backwards compat)
+
+- [x] **10.4** Verify dashboard renders
+  - Consensus section renders (with/without quant scores)
+  - NC view cards render with evidence, mechanisms, consensus context
+  - Zero NC views case shows honest messaging
+  - Asset class filter works
+  - Collapsible sections expand/collapse
+
+- [x] **10.5** Verify Sheets export
+  - All worksheets write correctly
+  - NC Views worksheet has expanded columns
+  - Active Mechanisms worksheet is new and correct
+
+- [x] **10.6** Run on Streamlit locally
+  - `streamlit run app.py`
+  - Full visual check of the new dashboard
+  - Click through all expandable sections
+
+---
+
+### Execution Order
+
+The milestones should be executed roughly in this order, though some can be parallelized:
+
+```
+Milestone 1 (schemas)          ← everything depends on this
+    ↓
+Milestone 2 (pipeline)         ← core restructure
+Milestone 3 (regime rework)    ← can run in parallel with M2
+    ↓
+Milestone 4 (storage)          ← depends on M1 + M2
+    ↓
+Milestone 5 (dashboard)        ← depends on M1 + M4
+Milestone 6 (CSS)              ← runs in parallel with M5
+    ↓
+Milestone 7 (sheets)           ← depends on M1
+Milestone 8 (app.py)           ← depends on M5
+Milestone 9 (cleanup)          ← last, after everything works
+    ↓
+Milestone 10 (testing)         ← final validation
+```
+
+Total: ~50 individual tasks across 10 milestones.

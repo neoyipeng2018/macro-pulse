@@ -1,4 +1,4 @@
-"""Composite scoring: combine narrative, technical, and scenario signals.
+"""LEGACY — only used by run_pipeline_legacy(). Composite scoring: combine narrative, technical, and scenario signals.
 
 Three weighted components (50/25/25) plus a divergence-scaled contrarian nudge,
 clamped to [-1.0, +1.0].
@@ -17,6 +17,7 @@ from models.schemas import (
     AssetClass,
     CompositeAssetScore,
     ConsensusScore,
+    NonConsensusView,
     ScenarioAssetView,
     SentimentDirection,
     WeeklyAssetScore,
@@ -103,63 +104,58 @@ def _divergence_nudge(
         return -0.05 * sign
 
 
+def _nc_validity_nudge(
+    ticker: str,
+    nc_views: dict[str, NonConsensusView],
+) -> float:
+    """Nudge based on non-consensus validity from Phase 2."""
+    ncv = nc_views.get(ticker)
+    if ncv is None:
+        return -0.05
+    return 0.05 + ncv.validity_score * 0.15
+
+
 def compute_composite_scores(
     asset_scores: list[WeeklyAssetScore],
     technicals: dict[str, TechnicalSnapshot],
     scenario_views: list[ScenarioAssetView],
     edge_types: dict[str, str],
     consensus_scores: list[ConsensusScore] | None = None,
+    non_consensus_views: dict[str, NonConsensusView] | None = None,
 ) -> list[CompositeAssetScore]:
     """Compute composite scores for all scored assets.
 
-    Parameters
-    ----------
-    asset_scores : list[WeeklyAssetScore]
-        Existing narrative-based scores from sentiment_aggregator.
-    technicals : dict[str, TechnicalSnapshot]
-        Technical indicators keyed by ticker.
-    scenario_views : list[ScenarioAssetView]
-        Scenario aggregations for scenario_score component.
-    edge_types : dict[str, str]
-        Per-ticker edge type from narrative asset sentiments.
-    consensus_scores : list[ConsensusScore] | None
-        Computed consensus scores for divergence-based nudge.
-
-    Returns
-    -------
-    list[CompositeAssetScore]
-        Sorted by abs(composite_score) descending.
+    When non_consensus_views is provided (three-phase pipeline), uses
+    NC validity-based nudge. Otherwise falls back to divergence-based nudge.
     """
     scenario_by_ticker = {sv.ticker: sv for sv in scenario_views}
-    consensus_by_ticker = {}
+    consensus_by_ticker: dict[str, float] = {}
     if consensus_scores:
         consensus_by_ticker = {cs.ticker: cs.consensus_score for cs in consensus_scores}
 
     results: list[CompositeAssetScore] = []
     for asset in asset_scores:
-        nar_score = asset.score  # already ±1.0
+        nar_score = asset.score
         tech_score = _technical_score(technicals.get(asset.ticker))
         scen_score = _scenario_score(scenario_by_ticker.get(asset.ticker))
 
-        # Compute pre-nudge score to use as "our_score" for divergence calc
         pre_nudge = (
             W_NARRATIVE * nar_score
             + W_TECHNICAL * tech_score
             + W_SCENARIO * scen_score
         )
 
-        nudge = _divergence_nudge(
-            our_score=pre_nudge,
-            consensus_score=consensus_by_ticker.get(asset.ticker),
-            edge_type=edge_types.get(asset.ticker, "aligned"),
-        )
+        if non_consensus_views is not None:
+            nudge = _nc_validity_nudge(asset.ticker, non_consensus_views)
+        else:
+            nudge = _divergence_nudge(
+                our_score=pre_nudge,
+                consensus_score=consensus_by_ticker.get(asset.ticker),
+                edge_type=edge_types.get(asset.ticker, "aligned"),
+            )
 
-        composite = pre_nudge + nudge
+        composite = max(-1.0, min(1.0, pre_nudge + nudge))
 
-        # Clamp to [-1.0, +1.0]
-        composite = max(-1.0, min(1.0, composite))
-
-        # Determine direction from composite score
         if composite > 0.15:
             direction = SentimentDirection.BULLISH
         elif composite < -0.15:

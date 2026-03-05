@@ -107,7 +107,7 @@ class Narrative(BaseModel):
 
 
 class WeeklyAssetScore(BaseModel):
-    """Aggregated weekly directional score for a single asset."""
+    """LEGACY — only used by run_pipeline_legacy(). Aggregated weekly directional score for a single asset."""
 
     ticker: str
     asset_class: AssetClass
@@ -225,7 +225,7 @@ class ScenarioAssetView(BaseModel):
 
 
 class CompositeAssetScore(BaseModel):
-    """Composite score: 50% narrative + 25% technical + 25% scenario + flat contrarian nudge.
+    """LEGACY — only used by run_pipeline_legacy(). Composite score: 50% narrative + 25% technical + 25% scenario + flat contrarian nudge.
 
     Clamped to [-1.0, +1.0].
     """
@@ -263,7 +263,7 @@ class ConsensusScore(BaseModel):
 
 
 class DivergenceMetrics(BaseModel):
-    """Measures how non-consensus our view is for an asset."""
+    """LEGACY — only used by run_pipeline_legacy(). Measures how non-consensus our view is for an asset."""
 
     ticker: str
     consensus_score: float = 0.0       # from ConsensusScore
@@ -321,6 +321,63 @@ class TradeOutcome(BaseModel):
     days_held: int = 0
 
 
+class ConsensusView(BaseModel):
+    """Complete consensus picture for an asset: positioning + narrative."""
+
+    ticker: str
+    asset_class: AssetClass
+    quant_score: float = 0.0
+    quant_direction: str = "neutral"
+    quant_components: dict[str, float] = Field(default_factory=dict)
+    positioning_consensus: str = ""
+    positioning_summary: str = ""
+    narrative_consensus: str = ""
+    market_narrative: str = ""
+    consensus_coherence: str = "aligned"
+    coherence_detail: str = ""
+    key_levels: list[str] = Field(default_factory=list)
+    priced_in: list[str] = Field(default_factory=list)
+    not_priced_in: list[str] = Field(default_factory=list)
+    consensus_direction: SentimentDirection = SentimentDirection.NEUTRAL
+    consensus_confidence: float = 0.0
+    last_updated: datetime = Field(default_factory=datetime.utcnow)
+
+
+class EvidenceSource(BaseModel):
+    """A single piece of evidence supporting a non-consensus view."""
+
+    signal_id: str
+    source: str
+    summary: str
+    strength: float = 0.5
+
+
+class NonConsensusView(BaseModel):
+    """A specific disagreement with market consensus, with evidence."""
+
+    ticker: str
+    asset_class: AssetClass
+    consensus_direction: SentimentDirection
+    consensus_narrative: str = ""
+    our_direction: SentimentDirection
+    our_conviction: float = 0.0
+    thesis: str = ""
+    edge_type: str = "contrarian"
+    evidence: list[EvidenceSource] = Field(default_factory=list)
+    independent_source_count: int = 0
+    has_testable_mechanism: bool = False
+    has_timing_edge: bool = False
+    has_catalyst: str = ""
+    invalidation: str = ""
+    validity_score: float = 0.0
+    signal_ids: list[str] = Field(default_factory=list)
+    supporting_mechanisms: list[str] = Field(default_factory=list)
+    mechanism_stage: str = ""
+    regime_context: str = ""
+    consensus_quant_score: float = 0.0
+    consensus_coherence: str = ""
+
+
 class WeeklyReport(BaseModel):
     """Complete weekly macro-pulse report."""
 
@@ -330,13 +387,18 @@ class WeeklyReport(BaseModel):
     generated_at: datetime = Field(default_factory=datetime.utcnow)
     regime: EconomicRegime = EconomicRegime.TRANSITION
     regime_rationale: str = ""
+    signal_count: int = 0
+    summary: str = ""
+    # Phase 1: Consensus
+    consensus_scores: list[ConsensusScore] = Field(default_factory=list)
+    consensus_views: list[ConsensusView] = Field(default_factory=list)
+    # Phase 2: Non-Consensus + Mechanisms
+    non_consensus_views: list[NonConsensusView] = Field(default_factory=list)
+    active_scenarios: list[ActiveScenario] = Field(default_factory=list)
+    # LEGACY — kept for loading old reports from DB
     narratives: list[Narrative] = Field(default_factory=list)
     asset_scores: list[WeeklyAssetScore] = Field(default_factory=list)
-    signal_count: int = 0
-    summary: str = ""            # AI-generated executive summary
-    active_scenarios: list[ActiveScenario] = Field(default_factory=list)
     scenario_views: list[ScenarioAssetView] = Field(default_factory=list)
     composite_scores: list[CompositeAssetScore] = Field(default_factory=list)
-    consensus_scores: list[ConsensusScore] = Field(default_factory=list)
     divergence_metrics: list[DivergenceMetrics] = Field(default_factory=list)
     trade_theses: list[TradeThesis] = Field(default_factory=list)
