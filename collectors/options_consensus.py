@@ -690,6 +690,7 @@ class OptionsConsensusCollector(BaseCollector):
         return Signal(
             id=_make_id("options_skew", symbol),
             source=SignalSource.OPTIONS,
+            url=f"https://www.deribit.com/options/{symbol}",
             title=f"{symbol} options skew: {skew:+.2f} ({interpretation} at {expiry} expiry)",
             content=(
                 f"{symbol} 25-delta risk reversal is {skew:+.2f}% at the "
@@ -722,6 +723,7 @@ class OptionsConsensusCollector(BaseCollector):
         return Signal(
             id=_make_id("options_pcr", symbol),
             source=SignalSource.OPTIONS,
+            url=f"https://www.deribit.com/options/{symbol}",
             title=f"{symbol} put/call OI ratio: {pcr:.2f} ({interpretation})",
             content=(
                 f"{symbol} put/call open interest ratio is {pcr:.2f} at the "
@@ -754,6 +756,7 @@ class OptionsConsensusCollector(BaseCollector):
         return Signal(
             id=_make_id("options_maxpain", symbol),
             source=SignalSource.OPTIONS,
+            url=f"https://www.deribit.com/options/{symbol}",
             title=f"{symbol} max pain: {_format_price(max_pain)} (current price {distance_pct:+.1f}% away)",
             content=(
                 f"{symbol} max pain for {expiry} expiry is {_format_price(max_pain)}. "
@@ -787,6 +790,7 @@ class OptionsConsensusCollector(BaseCollector):
         return Signal(
             id=_make_id("options_dvol", symbol),
             source=SignalSource.OPTIONS,
+            url=f"https://www.deribit.com/options/{symbol}",
             title=f"{symbol} DVOL: {dvol:.1f} ({interpretation})",
             content=(
                 f"{symbol} Deribit Volatility Index (DVOL) is {dvol:.1f}. "
@@ -823,6 +827,7 @@ class OptionsConsensusCollector(BaseCollector):
         return Signal(
             id=_make_id("options_iv_slope", symbol),
             source=SignalSource.OPTIONS,
+            url=f"https://www.deribit.com/options/{symbol}",
             title=f"{symbol} IV term structure: {structure} ({slope_pct:+.1f}%)",
             content=(
                 f"{symbol} IV term structure slope is {slope_pct:+.1f}% "
@@ -923,6 +928,7 @@ class OptionsConsensusCollector(BaseCollector):
         return Signal(
             id=_make_id("options_composite", symbol),
             source=SignalSource.OPTIONS,
+            url=f"https://www.deribit.com/options/{symbol}",
             title=f"{symbol} options consensus: {overall} ({expiry_label} expiry)",
             content=" ".join(content_parts),
             metadata={

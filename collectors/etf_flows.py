@@ -171,6 +171,7 @@ class ETFFlowsCollector(BaseCollector):
                 Signal(
                     id=_make_id("etf_btc_flow"),
                     source=SignalSource.ETF_FLOWS,
+                    url="https://sosovalue.com/assets/etf/us-btc-spot",
                     title=(
                         f"BTC ETF flows: ${daily_flow:+.1f}M daily, "
                         f"${rolling_5d:+.1f}M 5-day rolling"
@@ -202,6 +203,7 @@ class ETFFlowsCollector(BaseCollector):
                     Signal(
                         id=_make_id("etf_btc_alert"),
                         source=SignalSource.ETF_FLOWS,
+                        url="https://sosovalue.com/assets/etf/us-btc-spot",
                         title=(
                             f"ETF ALERT: BTC extreme {direction} "
                             f"${abs(daily_flow):.0f}M"
@@ -250,6 +252,7 @@ class ETFFlowsCollector(BaseCollector):
                 Signal(
                     id=_make_id("etf_eth_flow"),
                     source=SignalSource.ETF_FLOWS,
+                    url="https://sosovalue.com/assets/etf/us-btc-spot",
                     title=(
                         f"ETH ETF flows: ${daily_flow:+.1f}M daily, "
                         f"${rolling_5d:+.1f}M 5-day rolling"
@@ -342,6 +345,7 @@ class ETFFlowsCollector(BaseCollector):
             Signal(
                 id=_make_id("etf_btc_stub"),
                 source=SignalSource.ETF_FLOWS,
+                url="https://sosovalue.com/assets/etf/us-btc-spot",
                 title="BTC ETF flows: data unavailable — neutral stub",
                 content=(
                     "BTC spot-ETF flow data could not be retrieved from "
@@ -362,6 +366,7 @@ class ETFFlowsCollector(BaseCollector):
             Signal(
                 id=_make_id("etf_eth_stub"),
                 source=SignalSource.ETF_FLOWS,
+                url="https://sosovalue.com/assets/etf/us-btc-spot",
                 title="ETH ETF flows: data unavailable — neutral stub",
                 content=(
                     "ETH spot-ETF flow data could not be retrieved from "

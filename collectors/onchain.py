@@ -132,6 +132,7 @@ class OnChainCollector(BaseCollector):
             Signal(
                 id=_make_id("stablecoin_total"),
                 source=SignalSource.ONCHAIN,
+                url="https://defillama.com/stablecoins",
                 title=f"Stablecoin supply ${total_supply / 1e9:.1f}B ({supply_7d_change_pct:+.2f}% 7d) — {trend}",
                 content=(
                     f"Total stablecoin market cap: ${total_supply / 1e9:.2f}B, "
@@ -178,6 +179,7 @@ class OnChainCollector(BaseCollector):
                     Signal(
                         id=_make_id("stablecoin_comparison"),
                         source=SignalSource.ONCHAIN,
+                        url="https://defillama.com/stablecoins",
                         title=f"Stablecoin demand: USDT {usdt_chg:+.2f}% vs USDC {usdc_chg:+.2f}% (7d)",
                         content=(
                             f"USDT 7d change: {usdt_chg:+.2f}% (${usdt_supply / 1e9:.1f}B). "
@@ -200,6 +202,7 @@ class OnChainCollector(BaseCollector):
                     Signal(
                         id=_make_id("stablecoin_alert", coin["symbol"]),
                         source=SignalSource.ONCHAIN,
+                        url="https://defillama.com/stablecoins",
                         title=f"STABLECOIN ALERT: {coin['symbol']} mcap down {coin['change_7d_pct']:.1f}% in 7d",
                         content=(
                             f"WARNING: {coin['name']} ({coin['symbol']}) market cap "

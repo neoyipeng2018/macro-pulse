@@ -56,7 +56,7 @@ class RedditCollector(BaseCollector):
                     signals.append(
                         Signal(
                             id=sig_id,
-                            source=SignalSource.SOCIAL,
+                            source=SignalSource.REDDIT,
                             title=title,
                             content=selftext if selftext else title,
                             url=permalink,

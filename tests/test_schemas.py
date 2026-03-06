@@ -6,9 +6,11 @@ from models.schemas import (
     AssetClass,
     AssetSentiment,
     ConsensusScore,
+    ConsensusView,
     DivergenceMetrics,
     EconomicRegime,
     Narrative,
+    NonConsensusView,
     SentimentDirection,
     Signal,
     SignalSource,
@@ -83,7 +85,6 @@ def test_weekly_asset_score():
     assert score.direction == SentimentDirection.BULLISH
 
 
-
 def test_weekly_report():
     report = WeeklyReport(
         id="rpt001",
@@ -122,6 +123,15 @@ def test_signal_source_consensus():
     assert SignalSource.OPTIONS.value == "options"
     assert SignalSource.DERIVATIVES_CONSENSUS.value == "derivatives_consensus"
     assert SignalSource.ETF_FLOWS.value == "etf_flows"
+
+
+def test_signal_source_new_enums():
+    assert SignalSource.REDDIT.value == "reddit"
+    assert SignalSource.TWITTER.value == "twitter_crypto"
+    assert SignalSource.YOUTUBE.value == "youtube_crypto"
+    assert SignalSource.MEMPOOL.value == "mempool"
+    assert SignalSource.ETH_ONCHAIN.value == "eth_onchain"
+    assert SignalSource.EXA_NEWS.value == "exa_news"
 
 
 def test_consensus_score():
@@ -209,3 +219,54 @@ def test_weekly_report_with_consensus():
     )
     assert len(report.consensus_scores) == 1
     assert len(report.trade_theses) == 1
+
+
+def test_non_consensus_view_validation_fields():
+    ncv = NonConsensusView(
+        ticker="Bitcoin",
+        asset_class=AssetClass.CRYPTO,
+        consensus_direction=SentimentDirection.BULLISH,
+        our_direction=SentimentDirection.BEARISH,
+        our_conviction=0.7,
+        thesis="Market is overleveraged",
+        edge_type="contrarian",
+        validation_multi_source=True,
+        validation_causal=True,
+        validation_sources=["reddit", "news"],
+        validation_mechanism_id="crypto_leverage_flush",
+        validation_mechanism_stage="early",
+        evidence_urls=[{"source": "reddit", "url": "https://example.com", "summary": "test"}],
+        one_week_nc_range={"consensus_low": 90000, "consensus_high": 100000},
+    )
+    assert ncv.validation_multi_source is True
+    assert ncv.validation_causal is True
+    assert len(ncv.validation_sources) == 2
+    assert ncv.validation_mechanism_id == "crypto_leverage_flush"
+    assert ncv.validation_mechanism_stage == "early"
+    assert len(ncv.evidence_urls) == 1
+    assert ncv.one_week_nc_range["consensus_low"] == 90000
+
+
+def test_consensus_view_one_week_range():
+    cv = ConsensusView(
+        ticker="Bitcoin",
+        asset_class=AssetClass.CRYPTO,
+        one_week_range={"consensus_low": 88000, "consensus_high": 102000, "consensus_mid": 95000},
+    )
+    assert cv.one_week_range["consensus_mid"] == 95000
+
+
+def test_weekly_report_regime_votes():
+    report = WeeklyReport(
+        id="rpt003",
+        week_start=datetime(2026, 3, 2),
+        week_end=datetime(2026, 3, 8),
+        regime=EconomicRegime.RISK_ON,
+        signal_count=100,
+        regime_votes=[
+            {"indicator": "VIX", "regime": "risk_on", "confidence": 0.7, "rationale": "VIX low"},
+            {"indicator": "Credit", "regime": "risk_on", "confidence": 0.5, "rationale": "OAS tight"},
+        ],
+    )
+    assert len(report.regime_votes) == 2
+    assert report.regime_votes[0]["indicator"] == "VIX"

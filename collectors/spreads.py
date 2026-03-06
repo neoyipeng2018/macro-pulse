@@ -103,6 +103,7 @@ class SpreadsCollector(BaseCollector):
             signals.append(Signal(
                 id=_make_id("vix_term"),
                 source=SignalSource.SPREADS,
+                url="https://finance.yahoo.com/quote/%5EVIX",
                 title=f"VIX term structure in backwardation (ratio: {ratio:.2f})",
                 content=(
                     f"VIX spot ({vix_now:.1f}) is trading above VIX3M ({vix3m_now:.1f}), "
@@ -124,6 +125,7 @@ class SpreadsCollector(BaseCollector):
             signals.append(Signal(
                 id=_make_id("vix_term"),
                 source=SignalSource.SPREADS,
+                url="https://finance.yahoo.com/quote/%5EVIX",
                 title=f"VIX term structure in deep contango (ratio: {ratio:.2f})",
                 content=(
                     f"VIX spot ({vix_now:.1f}) is well below VIX3M ({vix3m_now:.1f}), "
@@ -153,6 +155,7 @@ class SpreadsCollector(BaseCollector):
             signals.append(Signal(
                 id=_make_id("vix_level"),
                 source=SignalSource.SPREADS,
+                url="https://finance.yahoo.com/quote/%5EVIX",
                 title=f"VIX {level} at {vix_now:.1f}",
                 content=(
                     f"The VIX is at {vix_now:.1f}, which is {level}. "
@@ -190,6 +193,7 @@ class SpreadsCollector(BaseCollector):
             signals.append(Signal(
                 id=_make_id("vix_vvix_divergence"),
                 source=SignalSource.SPREADS,
+                url="https://finance.yahoo.com/quote/%5EVIX",
                 title=f"VVIX/VIX divergence: VVIX {vvix_now:.0f} with VIX only {vix_now:.1f}",
                 content=(
                     f"The VVIX (volatility of VIX) is at {vvix_now:.0f} while VIX is "
@@ -264,6 +268,7 @@ class SpreadsCollector(BaseCollector):
             signals.append(Signal(
                 id=_make_id("credit_spread"),
                 source=SignalSource.SPREADS,
+                url="https://finance.yahoo.com/quote/%5EVIX",
                 title=f"Credit spreads {severity} widening (HYG/LQD z: {z:.1f})",
                 content=(
                     f"High-yield bonds (HYG) are underperforming investment grade (LQD) — "
@@ -284,6 +289,7 @@ class SpreadsCollector(BaseCollector):
             signals.append(Signal(
                 id=_make_id("credit_spread"),
                 source=SignalSource.SPREADS,
+                url="https://finance.yahoo.com/quote/%5EVIX",
                 title=f"Credit spreads tightening (HYG/LQD z: {z:.1f})",
                 content=(
                     f"High-yield bonds (HYG) are outperforming investment grade (LQD) — "
@@ -327,6 +333,7 @@ class SpreadsCollector(BaseCollector):
             signals.append(Signal(
                 id=_make_id("yc_10y3m"),
                 source=SignalSource.SPREADS,
+                url="https://finance.yahoo.com/quote/%5EVIX",
                 title=f"Yield curve inverted: 10Y-3M at {current:.2f}%",
                 content=(
                     f"The 10Y-3M treasury spread is {current:.2f}%, inverted. "
@@ -348,6 +355,7 @@ class SpreadsCollector(BaseCollector):
             signals.append(Signal(
                 id=_make_id("yc_10y3m"),
                 source=SignalSource.SPREADS,
+                url="https://finance.yahoo.com/quote/%5EVIX",
                 title=f"Yield curve near flat: 10Y-3M at {current:.2f}%",
                 content=(
                     f"The 10Y-3M treasury spread is {current:.2f}%, near flat. "
@@ -369,6 +377,7 @@ class SpreadsCollector(BaseCollector):
             signals.append(Signal(
                 id=_make_id("yc_10y3m_move"),
                 source=SignalSource.SPREADS,
+                url="https://finance.yahoo.com/quote/%5EVIX",
                 title=f"Yield curve rapidly {direction}: 10Y-3M moved {change:+.2f}% in 5d",
                 content=(
                     f"The 10Y-3M spread moved {change:+.2f}% over 5 days "
@@ -416,6 +425,7 @@ class SpreadsCollector(BaseCollector):
             signals.append(Signal(
                 id=_make_id("copper_gold"),
                 source=SignalSource.SPREADS,
+                url="https://finance.yahoo.com/quote/%5EVIX",
                 title=f"Copper/Gold ratio {severity} declining (z: {z:.1f}) — risk-off signal",
                 content=(
                     f"The Copper/Gold ratio z-score is {z:.1f} on a 20-day window. "
@@ -436,6 +446,7 @@ class SpreadsCollector(BaseCollector):
             signals.append(Signal(
                 id=_make_id("copper_gold"),
                 source=SignalSource.SPREADS,
+                url="https://finance.yahoo.com/quote/%5EVIX",
                 title=f"Copper/Gold ratio rising (z: {z:.1f}) — risk-on signal",
                 content=(
                     f"The Copper/Gold ratio z-score is {z:.1f} on a 20-day window. "

@@ -41,6 +41,7 @@ class FearGreedCollector(BaseCollector):
                         id=sig_id,
                         source=SignalSource.FEAR_GREED,
                         title=f"Crypto Fear & Greed: {value} ({classification})",
+                        url="https://alternative.me/crypto/fear-and-greed-index/",
                         content=(
                             f"Crypto Fear & Greed Index: {value}/100 — {classification}. "
                             f"Values below 25 indicate extreme fear (potential buying opportunity), "

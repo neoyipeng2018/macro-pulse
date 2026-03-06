@@ -76,6 +76,8 @@ def export_to_sheets(report: WeeklyReport) -> None:
     _write_consensus_views(sh, report.consensus_views, week)
     _write_non_consensus_views(sh, report.non_consensus_views, week)
     _write_active_mechanisms(sh, report.active_scenarios, week)
+    _write_regime_votes(sh, report.regime_votes, week)
+    _write_direction_calls(sh, report, week)
 
     logger.info("Report exported to Google Sheets (week: %s)", week)
 
@@ -181,10 +183,11 @@ def _write_non_consensus_views(
         "Week", "Ticker", "Asset Class",
         "Consensus Direction", "Consensus Narrative",
         "Our Direction", "Our Conviction", "Thesis",
-        "Edge Type", "Evidence Sources", "Independent Sources",
-        "Testable Mechanism?", "Timing Edge?", "Catalyst",
-        "Invalidation", "Validity Score",
-        "Supporting Mechanisms", "Mechanism Stage",
+        "Edge Type", "Independent Sources",
+        "Multi-Source Valid", "Causal Valid",
+        "Validation Sources", "Mechanism ID", "Mechanism Stage",
+        "Evidence URLs", "Catalyst", "Invalidation",
+        "Supporting Mechanisms",
         "Regime Context", "Consensus Quant Score", "Consensus Coherence",
     ]
     ws = _get_or_create_worksheet(sh, "Non-Consensus Views", headers)
@@ -199,21 +202,71 @@ def _write_non_consensus_views(
             v.our_conviction,
             v.thesis,
             v.edge_type,
-            "; ".join(f"{e.source}: {e.summary}" for e in v.evidence),
             v.independent_source_count,
-            "Yes" if v.has_testable_mechanism else "No",
-            "Yes" if v.has_timing_edge else "No",
+            "TRUE" if v.validation_multi_source else "FALSE",
+            "TRUE" if v.validation_causal else "FALSE",
+            ", ".join(v.validation_sources),
+            v.validation_mechanism_id or "",
+            v.validation_mechanism_stage or "",
+            "; ".join(eu.get("url", "") for eu in v.evidence_urls if eu.get("url")),
             v.has_catalyst,
             v.invalidation,
-            v.validity_score,
             ", ".join(v.supporting_mechanisms),
-            v.mechanism_stage,
             v.regime_context,
             v.consensus_quant_score,
             v.consensus_coherence,
         ]
         for v in views
     ]
+    if rows:
+        ws.append_rows(rows, value_input_option="USER_ENTERED")
+
+
+def _write_regime_votes(
+    sh: gspread.Spreadsheet, votes: list[dict], week: str
+) -> None:
+    if not votes:
+        return
+
+    headers = ["Week", "Indicator", "Voted Regime", "Confidence", "Rationale"]
+    ws = _get_or_create_worksheet(sh, "Regime Votes", headers)
+    rows = [
+        [
+            week,
+            rv.get("indicator", ""),
+            rv.get("regime", ""),
+            rv.get("confidence", 0),
+            rv.get("rationale", ""),
+        ]
+        for rv in votes
+    ]
+    if rows:
+        ws.append_rows(rows, value_input_option="USER_ENTERED")
+
+
+def _write_direction_calls(
+    sh: gspread.Spreadsheet, report: WeeklyReport, week: str
+) -> None:
+    headers = [
+        "Week", "Ticker", "Consensus Direction",
+        "Range Low", "Range High", "Range Mid",
+        "NC Direction", "NC Edge Type",
+    ]
+    ws = _get_or_create_worksheet(sh, "Direction Calls", headers)
+    rows = []
+    for cv in report.consensus_views:
+        ncv = next((n for n in report.non_consensus_views if n.ticker == cv.ticker), None)
+        rng = cv.one_week_range or {}
+        rows.append([
+            week,
+            cv.ticker,
+            cv.consensus_direction.value,
+            rng.get("consensus_low", ""),
+            rng.get("consensus_high", ""),
+            rng.get("consensus_mid", ""),
+            ncv.our_direction.value if ncv else "",
+            ncv.edge_type if ncv else "",
+        ])
     if rows:
         ws.append_rows(rows, value_input_option="USER_ENTERED")
 

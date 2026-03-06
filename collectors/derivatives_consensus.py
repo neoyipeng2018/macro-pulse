@@ -641,6 +641,7 @@ class DerivativesConsensusCollector(BaseCollector):
         return Signal(
             id=_make_id("deriv_ls", symbol),
             source=SignalSource.DERIVATIVES_CONSENSUS,
+            url=f"https://www.binance.com/en/futures/{symbol}USDT",
             title=f"{symbol} global L/S ratio: {ratio:.3f} ({bias})",
             content=(
                 f"{symbol} Binance global long/short account ratio: {ratio:.3f} "
@@ -680,6 +681,7 @@ class DerivativesConsensusCollector(BaseCollector):
         return Signal(
             id=_make_id("deriv_top_ls", symbol),
             source=SignalSource.DERIVATIVES_CONSENSUS,
+            url=f"https://www.binance.com/en/futures/{symbol}USDT",
             title=f"{symbol} top trader L/S: {ratio:.3f} ({bias})",
             content=(
                 f"{symbol} Binance top trader long/short ratio: {ratio:.3f} "
@@ -722,6 +724,7 @@ class DerivativesConsensusCollector(BaseCollector):
         return Signal(
             id=_make_id("deriv_funding", symbol),
             source=SignalSource.DERIVATIVES_CONSENSUS,
+            url=f"https://www.binance.com/en/futures/{symbol}USDT",
             title=f"{symbol} OI-weighted funding: {rate_pct:+.4f}% ({bias})",
             content=(
                 f"{symbol} OI-weighted funding rate across {exchange_count} exchanges: "
@@ -774,6 +777,7 @@ class DerivativesConsensusCollector(BaseCollector):
         return Signal(
             id=_make_id("deriv_funding_7d", symbol),
             source=SignalSource.DERIVATIVES_CONSENSUS,
+            url=f"https://www.binance.com/en/futures/{symbol}USDT",
             title=f"{symbol} 7d accumulated funding: {acc_pct:+.4f}% ({bias})",
             content=(
                 f"{symbol} accumulated funding over 7 days: {acc_pct:+.4f}% "
@@ -837,6 +841,7 @@ class DerivativesConsensusCollector(BaseCollector):
         return Signal(
             id=_make_id("deriv_oi_change", symbol),
             source=SignalSource.DERIVATIVES_CONSENSUS,
+            url=f"https://www.binance.com/en/futures/{symbol}USDT",
             title=f"{symbol} OI change: {change_str} (OI: {oi_str})",
             content=(
                 f"{symbol} open interest change — {change_str}. "
@@ -940,6 +945,7 @@ class DerivativesConsensusCollector(BaseCollector):
         return Signal(
             id=_make_id("deriv_consensus", symbol),
             source=SignalSource.DERIVATIVES_CONSENSUS,
+            url=f"https://www.binance.com/en/futures/{symbol}USDT",
             title=f"{symbol} derivatives consensus: {consensus}",
             content=(
                 f"{symbol} multi-exchange derivatives consensus: {consensus}. "

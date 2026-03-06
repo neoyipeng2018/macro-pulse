@@ -54,6 +54,7 @@ class EconomicDataCollector(BaseCollector):
                     Signal(
                         id=sig_id,
                         source=SignalSource.ECONOMIC_DATA,
+                        url=f"https://fred.stlouisfed.org/series/{series_id}",
                         title=f"{name}: {latest:.2f} ({change:+.2f})",
                         content=(
                             f"{name} ({series_id}) latest reading: {latest:.4f}. "

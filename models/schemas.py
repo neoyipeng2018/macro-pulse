@@ -25,6 +25,9 @@ class SignalSource(str, Enum):
     NEWS = "news"
     MARKET_DATA = "market_data"
     SOCIAL = "social"
+    REDDIT = "reddit"
+    TWITTER = "twitter_crypto"
+    YOUTUBE = "youtube_crypto"
     CENTRAL_BANK = "central_bank"
     ECONOMIC_DATA = "economic_data"
     COT = "cot"
@@ -37,6 +40,9 @@ class SignalSource(str, Enum):
     OPTIONS = "options"
     DERIVATIVES_CONSENSUS = "derivatives_consensus"
     ETF_FLOWS = "etf_flows"
+    MEMPOOL = "mempool"
+    ETH_ONCHAIN = "eth_onchain"
+    EXA_NEWS = "exa_news"
 
 
 class EconomicRegime(str, Enum):
@@ -340,6 +346,7 @@ class ConsensusView(BaseModel):
     not_priced_in: list[str] = Field(default_factory=list)
     consensus_direction: SentimentDirection = SentimentDirection.NEUTRAL
     consensus_confidence: float = 0.0
+    one_week_range: dict[str, float] = Field(default_factory=dict)
     last_updated: datetime = Field(default_factory=datetime.utcnow)
 
 
@@ -369,13 +376,21 @@ class NonConsensusView(BaseModel):
     has_timing_edge: bool = False
     has_catalyst: str = ""
     invalidation: str = ""
-    validity_score: float = 0.0
+    validity_score: float = 0.0  # LEGACY: kept for DB compat, no longer used for display
     signal_ids: list[str] = Field(default_factory=list)
     supporting_mechanisms: list[str] = Field(default_factory=list)
     mechanism_stage: str = ""
     regime_context: str = ""
     consensus_quant_score: float = 0.0
     consensus_coherence: str = ""
+    # New binary validation fields
+    validation_multi_source: bool = False
+    validation_causal: bool = False
+    validation_sources: list[str] = Field(default_factory=list)
+    validation_mechanism_id: str | None = None
+    validation_mechanism_stage: str | None = None
+    evidence_urls: list[dict] = Field(default_factory=list)
+    one_week_nc_range: dict[str, float] = Field(default_factory=dict)
 
 
 class WeeklyReport(BaseModel):
@@ -392,6 +407,8 @@ class WeeklyReport(BaseModel):
     # Phase 1: Consensus
     consensus_scores: list[ConsensusScore] = Field(default_factory=list)
     consensus_views: list[ConsensusView] = Field(default_factory=list)
+    regime_votes: list[dict] = Field(default_factory=list)
+    direction_calls: list[dict] = Field(default_factory=list)
     # Phase 2: Non-Consensus + Mechanisms
     non_consensus_views: list[NonConsensusView] = Field(default_factory=list)
     active_scenarios: list[ActiveScenario] = Field(default_factory=list)

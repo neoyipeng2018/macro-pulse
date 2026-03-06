@@ -1,4 +1,4 @@
-"""Signal source classification for the three-phase pipeline.
+"""Signal source classification for the pipeline.
 
 Separates sources into consensus-revealing (positioning + narrative)
 and alpha-candidate categories. Some sources are dual-role.
@@ -11,7 +11,6 @@ POSITIONING_SOURCES = {
     "etf_flows",
     "funding_rates",
     "market_data",
-    "cot_reports",
 }
 
 # Qualitative narrative: what people believe and talk about
@@ -19,9 +18,7 @@ NARRATIVE_CONSENSUS_SOURCES = {
     "news",
     "reddit",
     "fear_greed",
-    "prediction_markets",
-    "central_bank",
-    "economic_calendar",
+    "twitter_crypto",
 }
 
 # All sources that feed into Phase 1 consensus picture
@@ -33,9 +30,11 @@ ALPHA_SOURCES = {
     "news",
     "reddit",
     "spreads",
-    "google_trends",
     "onchain",
+    "mempool",
+    "eth_onchain",
     "economic_data",
-    "central_bank",
-    "economic_calendar",
+    "twitter_crypto",
+    "youtube_crypto",
+    "exa_news",
 }

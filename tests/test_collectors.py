@@ -8,10 +8,14 @@ from collectors.economic_data import EconomicDataCollector
 from collectors.cot_reports import COTCollector
 from collectors.fear_greed import FearGreedCollector
 from collectors.market_data import MarketDataCollector
-from collectors.twitter import TwitterCollector
+from collectors.twitter import TwitterCryptoCollector
 from collectors.economic_calendar import EconomicCalendarCollector
 from collectors.funding_rates import FundingRatesCollector
 from collectors.onchain import OnChainCollector
+from collectors.mempool import MempoolCollector
+from collectors.eth_onchain import EthOnChainCollector
+from collectors.youtube_crypto import YouTubeCryptoCollector
+from collectors.exa_news import ExaNewsCollector
 
 
 def test_all_collectors_inherit_base():
@@ -24,10 +28,14 @@ def test_all_collectors_inherit_base():
         COTCollector,
         FearGreedCollector,
         MarketDataCollector,
-        TwitterCollector,
+        TwitterCryptoCollector,
         EconomicCalendarCollector,
         FundingRatesCollector,
         OnChainCollector,
+        MempoolCollector,
+        EthOnChainCollector,
+        YouTubeCryptoCollector,
+        ExaNewsCollector,
     ]
     for cls in collectors:
         assert issubclass(cls, BaseCollector), f"{cls.__name__} must inherit BaseCollector"
@@ -37,27 +45,48 @@ def test_all_collectors_inherit_base():
 
 
 def test_rss_collector_has_feeds():
-    """RSSNewsCollector should have feed URLs configured."""
     collector = RSSNewsCollector()
     assert len(collector.feed_urls) > 0
 
 
 def test_market_data_collector_has_assets():
-    """MarketDataCollector should have assets from config."""
     collector = MarketDataCollector()
     tickers = collector._get_all_tickers()
     assert len(tickers) > 0
 
 
-def test_twitter_placeholder_returns_empty():
-    """Twitter collector should return empty list when no API key is set."""
-    collector = TwitterCollector()
+def test_twitter_crypto_graceful_fallback():
+    """Twitter collector should return empty when xreach is not installed."""
+    collector = TwitterCryptoCollector()
     signals = collector.collect()
     assert signals == []
 
 
+def test_youtube_crypto_graceful_fallback():
+    """YouTube collector should return empty when yt-dlp is not installed."""
+    collector = YouTubeCryptoCollector()
+    signals = collector.collect()
+    assert signals == []
+
+
+def test_exa_news_graceful_fallback():
+    """Exa collector should return empty when mcporter is not installed."""
+    collector = ExaNewsCollector()
+    signals = collector.collect()
+    assert signals == []
+
+
+def test_mempool_collector_attributes():
+    collector = MempoolCollector()
+    assert collector.source_name == "mempool"
+
+
+def test_eth_onchain_collector_attributes():
+    collector = EthOnChainCollector()
+    assert collector.source_name == "eth_onchain"
+
+
 def test_economic_calendar_event_to_signal():
-    """_event_to_signal() produces correct format from a calendar event."""
     from datetime import datetime
     collector = EconomicCalendarCollector()
     event = {
@@ -68,7 +97,6 @@ def test_economic_calendar_event_to_signal():
         "forecast": "4.5%",
         "previous": "4.75%",
     }
-    # Set now to before the event so it isn't filtered as past
     signal = collector._event_to_signal(event, now=datetime(2026, 3, 1))
     assert signal is not None
     assert signal.title.startswith("[UPCOMING]")
@@ -80,7 +108,6 @@ def test_economic_calendar_event_to_signal():
 
 
 def test_economic_calendar_filters_low_impact():
-    """Low-impact events should be filtered out."""
     collector = EconomicCalendarCollector()
     event = {
         "country": "USD",
@@ -93,7 +120,6 @@ def test_economic_calendar_filters_low_impact():
 
 
 def test_economic_calendar_fomc_fallback():
-    """Hardcoded fallback returns FOMC dates when no API key is set."""
     collector = EconomicCalendarCollector()
     signals = collector._collect_fomc_fallback()
     for s in signals:
@@ -104,7 +130,6 @@ def test_economic_calendar_fomc_fallback():
 
 
 def test_funding_rates_collector_attributes():
-    """FundingRatesCollector should have symbols and thresholds."""
     collector = FundingRatesCollector()
     assert collector.source_name == "funding_rates"
     assert "BTC" in collector.symbols
@@ -115,7 +140,6 @@ def test_funding_rates_collector_attributes():
 
 
 def test_onchain_collector_attributes():
-    """OnChainCollector should have decline alert threshold."""
     collector = OnChainCollector()
     assert collector.source_name == "onchain"
     assert collector.decline_alert_pct < 0

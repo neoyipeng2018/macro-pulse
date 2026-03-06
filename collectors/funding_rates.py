@@ -230,6 +230,7 @@ class FundingRatesCollector(BaseCollector):
             Signal(
                 id=_make_id("funding", symbol),
                 source=SignalSource.FUNDING_RATES,
+                url="https://www.coinglass.com/FundingRate",
                 title=f"{symbol} funding rate: {rate:+.4f}% ({interpretation.split(' — ')[0]})",
                 content=(
                     f"{symbol} perpetual futures funding rate is {rate:+.4f}% "
@@ -255,6 +256,7 @@ class FundingRatesCollector(BaseCollector):
                 Signal(
                     id=_make_id("leverage_alert", symbol),
                     source=SignalSource.FUNDING_RATES,
+                    url="https://www.coinglass.com/FundingRate",
                     title=f"LEVERAGE ALERT: {symbol} extreme {direction} funding {rate:+.4f}%",
                     content=(
                         f"HIGH PRIORITY: {symbol} funding rate at {rate:+.4f}% is in "
@@ -286,6 +288,7 @@ class FundingRatesCollector(BaseCollector):
             Signal(
                 id=_make_id("oi", symbol),
                 source=SignalSource.FUNDING_RATES,
+                url="https://www.coinglass.com/FundingRate",
                 title=f"{symbol} open interest: ${oi_usd / 1e9:.1f}B ({oi_change_pct:+.1f}% 24h)",
                 content=(
                     f"{symbol} total open interest is ${oi_usd / 1e9:.2f}B, "

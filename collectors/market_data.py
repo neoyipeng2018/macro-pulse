@@ -79,6 +79,7 @@ class MarketDataCollector(BaseCollector):
                         id=sig_id,
                         source=SignalSource.MARKET_DATA,
                         title=f"{name} ({ticker}): {weekly_return:+.2f}% weekly, {monthly_return:+.2f}% monthly",
+                        url=f"https://finance.yahoo.com/quote/{ticker}",
                         content=(
                             f"{name} is {direction} {abs(weekly_return):.2f}% this week "
                             f"and {abs(monthly_return):.2f}% this month. "

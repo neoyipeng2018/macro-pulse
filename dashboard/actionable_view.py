@@ -65,6 +65,98 @@ def _render_regime_banner(report: WeeklyReport) -> None:
         unsafe_allow_html=True,
     )
 
+    if report.regime_votes:
+        with st.expander("Regime Votes", expanded=False):
+            final_regime = report.regime.value
+            agree_count = sum(1 for rv in report.regime_votes if rv.get("regime") == final_regime)
+            total = len(report.regime_votes)
+            st.markdown(
+                f'<div style="font-size:0.75rem;color:#c0c8d0;margin-bottom:8px;">'
+                f'{agree_count}/{total} indicators vote <strong>{final_regime.replace("_", " ")}</strong></div>',
+                unsafe_allow_html=True,
+            )
+            for rv in report.regime_votes:
+                is_agree = rv.get("regime") == final_regime
+                color = "#00d4aa" if is_agree else "#4a5568"
+                st.markdown(
+                    f'<div style="display:flex;gap:8px;align-items:center;padding:3px 0;font-size:0.7rem;">'
+                    f'<span style="color:{color};font-weight:700;width:90px;">{rv["indicator"]}</span>'
+                    f'<span class="badge badge-neutral" style="font-size:0.55rem;">{rv["regime"].replace("_", " ")}</span>'
+                    f'<span style="color:#8892a4;">{rv["confidence"]:.0%}</span>'
+                    f'<span style="color:#8892a4;">{rv["rationale"]}</span>'
+                    f'</div>',
+                    unsafe_allow_html=True,
+                )
+
+
+# ---------------------------------------------------------------------------
+# Direction summary (top-of-page BTC/ETH cards)
+# ---------------------------------------------------------------------------
+
+def _render_direction_summary(
+    report: WeeklyReport,
+) -> None:
+    btc_cv = next((cv for cv in report.consensus_views if cv.ticker == "Bitcoin"), None)
+    eth_cv = next((cv for cv in report.consensus_views if cv.ticker == "Ethereum"), None)
+    nc_by_ticker = {ncv.ticker: ncv for ncv in report.non_consensus_views}
+
+    cols = st.columns(2)
+    for col, cv, label in [(cols[0], btc_cv, "BTC"), (cols[1], eth_cv, "ETH")]:
+        with col:
+            if not cv:
+                st.markdown(f'<div style="color:#4a5568;font-size:0.75rem;">{label}: No data</div>', unsafe_allow_html=True)
+                continue
+
+            direction = cv.consensus_direction.value
+            border_color = "#00d4aa" if direction == "bullish" else "#ff4444" if direction == "bearish" else "#4a5568"
+
+            range_html = ""
+            if cv.one_week_range:
+                rng = cv.one_week_range
+                low = rng.get("consensus_low", 0)
+                high = rng.get("consensus_high", 0)
+                mid = rng.get("consensus_mid", 0)
+                spot = rng.get("spot", 0)
+                range_html = (
+                    f'<div style="font-size:0.7rem;color:#c0c8d0;margin:4px 0;">'
+                    f'1W Range: ${low:,.0f} &mdash; ${high:,.0f} (mid ${mid:,.0f})'
+                    f'</div>'
+                )
+                if spot > 0 and high > low:
+                    pct = max(0, min(100, (spot - low) / (high - low) * 100))
+                    range_html += (
+                        f'<div style="position:relative;height:8px;background:#1a2332;border-radius:4px;margin:4px 0;">'
+                        f'<div style="position:absolute;left:{pct:.0f}%;top:-2px;width:4px;height:12px;background:#00d4aa;border-radius:2px;" '
+                        f'title="Spot: ${spot:,.0f}"></div>'
+                        f'</div>'
+                    )
+
+            nc_html = ""
+            ncv = nc_by_ticker.get(cv.ticker)
+            if ncv:
+                nc_dir = ncv.our_direction.value
+                nc_color = "#ff4444" if nc_dir == "bearish" else "#00d4aa" if nc_dir == "bullish" else "#4a5568"
+                nc_html = (
+                    f'<div style="margin-top:4px;">'
+                    f'<span style="font-size:0.6rem;background:{nc_color};color:#0d1117;padding:1px 6px;border-radius:3px;">'
+                    f'NC: {nc_dir.upper()}</span>'
+                    f'<span style="font-size:0.65rem;color:#8892a4;margin-left:6px;">{ncv.edge_type}</span>'
+                    f'</div>'
+                )
+
+            st.markdown(
+                f'<div style="border-left:3px solid {border_color};padding:8px 12px;background:#0d1117;border-radius:4px;margin-bottom:8px;">'
+                f'<div style="display:flex;align-items:center;gap:8px;">'
+                f'<span style="font-size:0.9rem;font-weight:700;color:#e0e4e8;">{cv.ticker}</span>'
+                f'<span class="badge badge-{direction}" style="font-size:0.55rem;">{direction.upper()}</span>'
+                f'<span style="font-size:0.75rem;color:#c0c8d0;">{cv.quant_score:+.2f}</span>'
+                f'</div>'
+                f'{range_html}'
+                f'{nc_html}'
+                f'</div>',
+                unsafe_allow_html=True,
+            )
+
 
 # ---------------------------------------------------------------------------
 # Consensus section (collapsible context)
@@ -209,42 +301,72 @@ def _render_nc_view_card(
 ) -> None:
     consensus_dir = ncv.consensus_direction.value
     our_dir = ncv.our_direction.value
-    validity_pct = int(ncv.validity_score * 100)
     conviction_pct = int(ncv.our_conviction * 100)
     ac_label = ASSET_LABELS.get(ncv.asset_class, ncv.asset_class.value)
 
+    # Binary validation gates
+    multi_icon = "\u2713" if ncv.validation_multi_source else "\u2717"
+    multi_color = "#00E676" if ncv.validation_multi_source else "#ff4444"
+    causal_icon = "\u2713" if ncv.validation_causal else "\u2717"
+    causal_color = "#00E676" if ncv.validation_causal else "#ff4444"
+
+    sources_list = ", ".join(ncv.validation_sources) if ncv.validation_sources else "none"
+    mech_label = ""
+    if ncv.validation_mechanism_id:
+        mech_label = f"{ncv.validation_mechanism_id}"
+        if ncv.validation_mechanism_stage:
+            mech_label += f" ({ncv.validation_mechanism_stage})"
+
+    validation_html = (
+        f'<div style="display:flex;flex-direction:column;gap:2px;margin:6px 0;">'
+        f'<span style="color:{multi_color};font-size:0.65rem;">{multi_icon} {ncv.independent_source_count}+ independent sources ({sources_list})</span>'
+        f'<span style="color:{causal_color};font-size:0.65rem;">{causal_icon} Causal mechanism active'
+        f'{" — " + mech_label if mech_label else ""}</span>'
+        f'</div>'
+    )
+
     # Quality flags
     flags = []
-    if ncv.has_testable_mechanism:
-        flags.append('<span style="color:#00E676;font-size:0.6rem;">\u2713 mechanism</span>')
-    else:
-        flags.append('<span style="color:#4a5568;font-size:0.6rem;">\u2717 mechanism</span>')
-    if ncv.has_timing_edge:
-        flags.append('<span style="color:#00E676;font-size:0.6rem;">\u2713 timing</span>')
     if ncv.has_catalyst:
         flags.append('<span style="color:#00E676;font-size:0.6rem;">\u2713 catalyst</span>')
+    if ncv.has_timing_edge:
+        flags.append('<span style="color:#00E676;font-size:0.6rem;">\u2713 timing</span>')
     flags_html = " &nbsp; ".join(flags)
 
-    # --- Evidence section ---
+    # --- Evidence section with clickable URLs ---
     evidence_html = ""
-    for ev in ncv.evidence:
-        strength_bar = ""
-        if hasattr(ev, "strength") and ev.strength:
-            sw = int(ev.strength * 60)
-            strength_bar = (
-                f'<span style="display:inline-block;width:60px;height:4px;background:#1a2332;'
-                f'border-radius:2px;vertical-align:middle;margin-left:6px;">'
-                f'<span style="display:inline-block;width:{sw}px;height:4px;background:#00d4aa;'
-                f'border-radius:2px;"></span></span>'
+    if ncv.evidence_urls:
+        for eu in ncv.evidence_urls:
+            url = eu.get("url", "")
+            source = eu.get("source", "")
+            summary = eu.get("summary", "")[:200]
+            if url:
+                evidence_html += (
+                    f'<div class="nc-evidence-item">'
+                    f'<span class="nc-evidence-check">&#10003;</span>'
+                    f'<span class="nc-evidence-source">{source}</span>'
+                    f'<a href="{url}" target="_blank" style="color:#4fc3f7;font-size:0.7rem;text-decoration:none;">{summary or url[:60]}</a>'
+                    f'</div>'
+                )
+            else:
+                evidence_html += (
+                    f'<div class="nc-evidence-item">'
+                    f'<span class="nc-evidence-check">&#10003;</span>'
+                    f'<span class="nc-evidence-source">{source}</span>'
+                    f'<span class="nc-evidence-text">{summary}</span>'
+                    f'</div>'
+                )
+    elif ncv.evidence:
+        for ev in ncv.evidence:
+            ev_source = ev.get("source", "") if isinstance(ev, dict) else getattr(ev, "source", "")
+            ev_summary = ev.get("summary", "")[:250] if isinstance(ev, dict) else getattr(ev, "summary", "")[:250]
+            evidence_html += (
+                f'<div class="nc-evidence-item">'
+                f'<span class="nc-evidence-check">&#10003;</span>'
+                f'<span class="nc-evidence-source">{ev_source}</span>'
+                f'<span class="nc-evidence-text">{ev_summary}</span>'
+                f'</div>'
             )
-        evidence_html += (
-            f'<div class="nc-evidence-item">'
-            f'<span class="nc-evidence-check">&#10003;</span>'
-            f'<span class="nc-evidence-source">{ev.source}</span>'
-            f'<span class="nc-evidence-text">{ev.summary[:250]}</span>'
-            f'{strength_bar}'
-            f'</div>'
-        )
 
     # --- Mechanism section (collapsible) ---
     mechanism_html = ""
@@ -417,7 +539,7 @@ def _render_nc_view_card(
         f'</div>'
         # Thesis
         f'<div class="nc-thesis">{ncv.thesis[:500]}</div>'
-        # Conviction + validity bars
+        # Conviction bar
         f'<div style="display:flex;gap:16px;align-items:center;margin:6px 0;">'
         f'<div style="display:flex;align-items:center;gap:4px;">'
         f'<span style="font-size:0.6rem;color:#4a5568;letter-spacing:0.06em;">CONVICTION:</span>'
@@ -425,12 +547,9 @@ def _render_nc_view_card(
         f'<span class="conviction-bar-fill conviction-bar-fill-{our_dir}" style="width:{conviction_pct}%"></span></span>'
         f'<span class="conviction-label">{ncv.our_conviction:.0%}</span>'
         f'</div>'
-        f'<div style="display:flex;align-items:center;gap:4px;">'
-        f'<span style="font-size:0.6rem;color:#4a5568;letter-spacing:0.06em;">VALIDITY:</span>'
-        f'<span class="validity-bar-bg"><span class="validity-bar-fill" style="width:{validity_pct}%"></span></span>'
-        f'<span class="validity-label">{ncv.validity_score:.0%}</span>'
         f'</div>'
-        f'</div>'
+        # Validation gates
+        f'{validation_html}'
         # Quality flags
         f'<div style="margin:4px 0;">{flags_html}</div>'
         # Evidence
@@ -511,6 +630,10 @@ def render_actionable_view(
 
     _render_regime_banner(report)
 
+    # Direction summary (BTC/ETH top cards)
+    if report.consensus_views:
+        _render_direction_summary(report)
+
     # Consensus context (collapsible)
     if report.consensus_views:
         _render_consensus_section(report.consensus_views, report.consensus_scores)
@@ -529,7 +652,7 @@ def render_actionable_view(
     nc_views = [ncv for ncv in report.non_consensus_views if ncv.asset_class in selected_assets]
 
     if nc_views:
-        for ncv in sorted(nc_views, key=lambda x: x.validity_score, reverse=True):
+        for ncv in sorted(nc_views, key=lambda x: x.our_conviction, reverse=True):
             _render_nc_view_card(
                 ncv,
                 cv_by_ticker.get(ncv.ticker),
